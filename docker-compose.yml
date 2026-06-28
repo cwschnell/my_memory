@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mem_assist_db
+    restart: always
+    environment:
+      POSTGRES_USER: memuser
+      POSTGRES_PASSWORD: mempass
+      POSTGRES_DB: memassist
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mem_assist_ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  backend:
+    build: ./backend
+    container_name: mem_assist_backend
+    restart: always
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - ollama
+    volumes:
+      - ./backend:/app
+      - audio_uploads:/app/uploads
+      - whisper_cache:/root/.cache/huggingface
+
+  frontend:
+    build: ./frontend
+    container_name: mem_assist_frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  pgdata:
+  ollama_data:
+  audio_uploads:
+  whisper_cache:
