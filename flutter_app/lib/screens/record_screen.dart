@@ -67,8 +67,9 @@ class _RecordScreenState extends State<RecordScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return StatefulWidget(
+        return StatefulBuilder(
           builder: (context, setModalState) {
+
             return AlertDialog(
               title: const Text('🛒 Associate Client Name'),
               content: SingleChildScrollView(
