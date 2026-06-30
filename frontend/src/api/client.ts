@@ -7,14 +7,14 @@ const api = axios.create({
 export interface Client {
   id: string
   created_at: string
-  name: str
+  name: string
 }
 
 export interface Recording {
   id: string
   created_at: string
   transcript: string
-  summary: str
+  summary: string
   status: string
   date_recorded?: string
   type: string

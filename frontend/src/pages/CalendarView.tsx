@@ -79,7 +79,7 @@ export default function CalendarView() {
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
-                justify: 'space-between',
+                justifyContent: 'space-between',
                 transition: 'all 0.15s ease'
               }}
             >
