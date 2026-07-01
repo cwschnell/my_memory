@@ -28,6 +28,7 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
       setPinSent(true)
       if (res?.dev_pin) {
         setDevPin(res.dev_pin)
+        setPin(res.dev_pin)
       }
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to send PIN.')

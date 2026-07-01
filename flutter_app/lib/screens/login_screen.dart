@@ -32,10 +32,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await ApiService.sendPin(email);
+      final res = await ApiService.sendPin(email);
       setState(() {
         _pinSent = true;
         _loading = false;
+        if (res['dev_pin'] != null) {
+          _pinCtrl.text = res['dev_pin'].toString();
+        }
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

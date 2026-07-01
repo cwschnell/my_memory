@@ -110,21 +110,22 @@ class ApiService {
     await http.delete(uri);
   }
 
-  static Future<void> sendPin(String email) async {
+  static Future<Map<String, dynamic>> sendPin(String email) async {
     final uri = Uri.parse('$BASE_URL/auth/send-pin');
     final res = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email}),
     );
-    if (res.statusCode != 200) {
-      String errorMsg = res.body;
-      try {
-        final decoded = jsonDecode(res.body);
-        if (decoded['detail'] != null) errorMsg = decoded['detail'].toString();
-      } catch (_) {}
-      throw Exception(errorMsg);
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
     }
+    String errorMsg = res.body;
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded['detail'] != null) errorMsg = decoded['detail'].toString();
+    } catch (_) {}
+    throw Exception(errorMsg);
   }
 
   static Future<Map<String, dynamic>> verifyPin(String email, String pin) async {
