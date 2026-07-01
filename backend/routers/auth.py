@@ -26,35 +26,62 @@ class AuthResponse(BaseModel):
     token: str
     email: str
 
-def send_pin_email(to_email: str, pin: str):
+def send_pin_email(to_email: str, pin: str) -> Optional[str]:
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
 
-    # Always log clearly for immediate local development / verification
     logger.info(f"\n=========================================\n🔑 [2FA LOGIN PIN] For {to_email}: {pin}\n=========================================\n")
 
     if not (smtp_host and smtp_user and smtp_pass):
         logger.warning(f"SMTP credentials not fully set. Logged PIN {pin} for {to_email} to server console.")
-        return
+        return "SMTP credentials not configured on server"
+
+    msg = MIMEMultipart()
+    msg["From"] = smtp_user
+    msg["To"] = to_email
+    msg["Subject"] = f"Your Login PIN: {pin}"
+
+    body = f"Hello,\n\nYour 4-digit login PIN for My Memory App is: {pin}\n\nIt expires in 15 minutes.\n\nThanks,\nMy Memory Team"
+    msg.attach(MIMEText(body, "plain"))
+
+    # Try port 465 directly if configured or as first choice for Gmail
+    errors = []
+    if smtp_port == 465 or "gmail.com" in (smtp_host or ""):
+        try:
+            with smtplib.SMTP_SSL(smtp_host, 465, timeout=15) as server:
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+            logger.info(f"Sent 2FA PIN email to {to_email} via SSL port 465")
+            return None
+        except Exception as e:
+            errors.append(f"Port 465 SSL failed: {e}")
 
     try:
-        msg = MIMEMultipart()
-        msg["From"] = smtp_user
-        msg["To"] = to_email
-        msg["Subject"] = f"Your Login PIN: {pin}"
-
-        body = f"Hello,\n\nYour 4-digit login PIN for My Memory App is: {pin}\n\nIt expires in 15 minutes.\n\nThanks,\nMy Memory Team"
-        msg.attach(MIMEText(body, "plain"))
-
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
             server.starttls()
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
-        logger.info(f"Sent 2FA PIN email to {to_email}")
+        logger.info(f"Sent 2FA PIN email to {to_email} via port {smtp_port}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to send email via SMTP: {e}")
+        errors.append(f"Port {smtp_port} failed: {e}")
+
+    # Fallback to SSL 465 if we haven't tried it yet
+    if smtp_port != 465 and "gmail.com" not in (smtp_host or ""):
+        try:
+            with smtplib.SMTP_SSL(smtp_host, 465, timeout=15) as server:
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+            logger.info(f"Sent 2FA PIN email to {to_email} via SSL 465 fallback")
+            return None
+        except Exception as e2:
+            errors.append(f"Fallback 465 failed: {e2}")
+
+    err_summary = " | ".join(errors)
+    logger.error(f"Failed to send email: {err_summary}")
+    return err_summary
 
 @router.post("/send-pin")
 async def send_pin(req: SendPinRequest, db: AsyncSession = Depends(get_db)):
@@ -80,13 +107,13 @@ async def send_pin(req: SendPinRequest, db: AsyncSession = Depends(get_db)):
         db.add(user)
 
     await db.commit()
-    smtp_set = bool(os.getenv("SMTP_HOST") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"))
-    send_pin_email(email_clean, pin)
+    err = send_pin_email(email_clean, pin)
     
     resp = {"status": "ok", "message": f"4-digit PIN sent to {email_clean}"}
-    if not smtp_set:
+    if err:
         resp["dev_pin"] = pin
-        resp["message"] = f"[DEV MODE] SMTP not configured on server. Your 4-digit PIN is: {pin}"
+        resp["email_error"] = err
+        resp["message"] = f"[DEV/FALLBACK MODE] Email delivery note: {err}. Your 4-digit PIN is: {pin}"
     return resp
 
 @router.get("/get-pin")
