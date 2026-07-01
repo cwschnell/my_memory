@@ -29,3 +29,24 @@ class Recording(Base):
     client_id     = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)
 
     client        = relationship("Client", back_populates="recordings")
+
+
+class UserAuth(Base):
+    __tablename__ = "user_auth"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+    email          = Column(String(255), nullable=False, unique=True)
+    pin            = Column(String(10), nullable=True)
+    pin_expires_at = Column(DateTime(timezone=True), nullable=True)
+    token          = Column(String(255), nullable=True, unique=True)
+
+
+class AppRelease(Base):
+    __tablename__ = "app_releases"
+
+    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+    version       = Column(String(50), nullable=False)
+    apk_url       = Column(String(500), nullable=False)
+    release_notes = Column(Text, nullable=True)

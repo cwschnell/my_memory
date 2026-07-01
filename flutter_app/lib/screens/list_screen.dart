@@ -46,13 +46,16 @@ class _ListScreenState extends State<ListScreen> {
   }
 
   Future<void> _rescheduleDate(Recording rec) async {
+    final now = DateTime.now();
+    final initial = rec.dateRecorded != null && rec.dateRecorded!.isAfter(now) ? rec.dateRecorded! : now.add(const Duration(days: 1));
     final picked = await showDatePicker(
       context: context,
-      initialDate: rec.dateRecorded ?? DateTime.now(),
-      firstDate: DateTime(2024),
+      initialDate: initial,
+      firstDate: now,
       lastDate: DateTime(2030),
     );
     if (picked != null) {
+      await ApiService.updateStatus(rec.id, 'postpone');
       await ApiService.updateDate(rec.id, picked);
       _fetchRecordings();
     }
@@ -312,7 +315,7 @@ class _ListScreenState extends State<ListScreen> {
                                     value: 'postpone',
                                     groupValue: rec.status,
                                     activeColor: const Color(0xFF64748B),
-                                    onChanged: (v) => _updateStatus(rec, v!),
+                                    onChanged: (v) => _rescheduleDate(rec),
                                   ),
                                 ),
                               ],

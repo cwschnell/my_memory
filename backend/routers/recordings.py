@@ -44,16 +44,19 @@ async def upload_recording(
     try:
         summary = await summarise_to_three_words(transcript)
     except Exception as e:
-        summary = "Voice Note Recorded"
+        import re
+        words = re.findall(r'\b[A-Za-z0-9]+\b', transcript)
+        summary = " ".join(words[:3]).title() if words else "New Voice Memo"
 
     # Handle client creation/lookup if provided
     target_client_id = None
-    if client_id and client_id.strip():
+    if client_id and client_id.strip() and client_id.strip().lower() not in ("null", "none"):
         try:
             target_client_id = uuid.UUID(client_id.strip())
         except ValueError:
-            pass
-    elif client_name and client_name.strip():
+            target_client_id = None
+
+    if target_client_id is None and client_name and client_name.strip():
         name_clean = client_name.strip()
         existing = await db.execute(select(Client).where(Client.name.ilike(name_clean)))
         c_obj = existing.scalar_one_or_none()

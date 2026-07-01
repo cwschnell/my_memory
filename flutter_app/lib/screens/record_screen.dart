@@ -59,11 +59,11 @@ class _RecordScreenState extends State<RecordScreen> {
       clients = await ApiService.getClients();
     } catch (_) {}
 
-    String? selectedClientId;
+    bool isAddNew = clients.isEmpty;
+    String? selectedClientId = clients.isNotEmpty ? clients.first.id : null;
     String newClientName = '';
-    bool isAddNew = false;
 
-    await showDialog(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
@@ -71,16 +71,17 @@ class _RecordScreenState extends State<RecordScreen> {
           builder: (context, setModalState) {
 
             return AlertDialog(
-              title: const Text('🛒 Associate Client Name'),
+              title: const Text('🛒 Associate Category / Store Name'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Select an existing client or create a new one for this shopping list:'),
+                    const Text('Select an existing store/category name or create a new one:'),
                     const SizedBox(height: 16),
                     if (!isAddNew && clients.isNotEmpty) ...[
                       DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'Select Client', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'Select Name', border: OutlineInputBorder()),
                         value: selectedClientId,
                         items: clients.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
                         onChanged: (val) => setModalState(() => selectedClientId = val),
@@ -88,17 +89,21 @@ class _RecordScreenState extends State<RecordScreen> {
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () => setModalState(() => isAddNew = true),
-                        child: const Text('+ Add New Client Name'),
+                        child: const Text('+ Add New Category / Store Name'),
                       )
                     ] else ...[
                       TextField(
-                        decoration: const InputDecoration(labelText: 'New Client Name', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'New Category / Store Name',
+                          hintText: 'e.g. Pick n Pay, Woolworths, Hardware',
+                          border: OutlineInputBorder(),
+                        ),
                         onChanged: (val) => newClientName = val,
                       ),
                       if (clients.isNotEmpty)
                         TextButton(
                           onPressed: () => setModalState(() => isAddNew = false),
-                          child: const Text('Choose Existing Client'),
+                          child: const Text('← Choose Existing Name'),
                         )
                     ]
                   ],
@@ -107,14 +112,22 @@ class _RecordScreenState extends State<RecordScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.pop(context, {'save': false});
                   },
-                  child: const Text('Save without Client'),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context, {'save': true, 'clientId': null, 'clientName': null});
+                  },
+                  child: const Text('No Name'),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
                   onPressed: () {
-                    Navigator.pop(context);
+                    final String? cName = isAddNew && newClientName.trim().isNotEmpty ? newClientName.trim() : null;
+                    final String? cId = !isAddNew ? selectedClientId : null;
+                    Navigator.pop(context, {'save': true, 'clientId': cId, 'clientName': cName});
                   },
                   child: const Text('Save Shopping Item'),
                 ),
@@ -125,11 +138,23 @@ class _RecordScreenState extends State<RecordScreen> {
       },
     );
 
+    if (result == null || result['save'] != true) {
+      setState(() {
+        _statusMessage = 'Recording cancelled';
+      });
+      try {
+        if (await audioFile.exists()) {
+          await audioFile.delete();
+        }
+      } catch (_) {}
+      return;
+    }
+
     await _uploadFile(
       audioFile,
       type: 'shopping',
-      clientId: isAddNew ? null : selectedClientId,
-      clientName: isAddNew ? newClientName : null,
+      clientId: result['clientId'],
+      clientName: result['clientName'],
     );
   }
 

@@ -49,8 +49,45 @@ export default function Dashboard() {
     }
   }
 
+  const [postponeModalRec, setPostponeModalRec] = useState<Recording | null>(null)
+  const [postponeDate, setPostponeDate] = useState('')
+
+  const handlePostponeConfirm = async () => {
+    if (!postponeModalRec || !postponeDate) return
+    try {
+      await updateStatus(postponeModalRec.id, 'postpone')
+      await updateDate(postponeModalRec.id, postponeDate)
+      setPostponeModalRec(null)
+      fetchRecordings(selectedDate)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, position: 'relative' }}>
+      {postponeModalRec && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#FFF', padding: 24, borderRadius: 12, width: 340, boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 12px', color: '#1E3A8A' }}>📅 Postpone Memo</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 14, color: '#475569' }}>
+              Select future date for: <strong>{postponeModalRec.summary}</strong>
+            </p>
+            <input
+              type="date"
+              value={postponeDate}
+              min={format(new Date(), 'yyyy-MM-dd')}
+              onChange={e => setPostponeDate(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: 6, border: '1px solid #CBD5E1', marginBottom: 20, fontSize: 15, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setPostponeModalRec(null)} style={{ padding: '8px 14px', background: '#E2E8F0', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={handlePostponeConfirm} style={{ padding: '8px 14px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Confirm Postpone</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #E2E8F0' }}>
         <h2 style={{ margin: 0, color: '#1E293B' }}>📋 Daily Memory Memos</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -121,7 +158,15 @@ export default function Dashboard() {
                     <input type="radio" name={r.id} checked={r.status === 'done'} onChange={() => handleStatus(r.id, 'done')} />
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                    <input type="radio" name={r.id} checked={r.status === 'postpone'} onChange={() => handleStatus(r.id, 'postpone')} />
+                    <input
+                      type="radio"
+                      name={r.id}
+                      checked={r.status === 'postpone'}
+                      onChange={() => {
+                        setPostponeModalRec(r)
+                        setPostponeDate(r.date_recorded || selectedDate)
+                      }}
+                    />
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                     <button

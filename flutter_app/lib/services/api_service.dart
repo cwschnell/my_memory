@@ -109,4 +109,48 @@ class ApiService {
     final uri = Uri.parse('$BASE_URL/recordings/$id');
     await http.delete(uri);
   }
+
+  static Future<void> sendPin(String email) async {
+    final uri = Uri.parse('$BASE_URL/auth/send-pin');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    if (res.statusCode != 200) {
+      String errorMsg = res.body;
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded['detail'] != null) errorMsg = decoded['detail'].toString();
+      } catch (_) {}
+      throw Exception(errorMsg);
+    }
+  }
+
+  static Future<Map<String, dynamic>> verifyPin(String email, String pin) async {
+    final uri = Uri.parse('$BASE_URL/auth/verify-pin');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'pin': pin}),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    String errorMsg = res.body;
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded['detail'] != null) errorMsg = decoded['detail'].toString();
+    } catch (_) {}
+    throw Exception(errorMsg);
+  }
+
+  static Future<Map<String, dynamic>> getLatestUpdate(String currentVersion) async {
+    final uri = Uri.parse('$BASE_URL/updates/latest?current_version=$currentVersion');
+    final res = await http.get(uri);
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    return {'update_available': false, 'apk_url': ''};
+  }
 }

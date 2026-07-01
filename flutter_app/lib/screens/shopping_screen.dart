@@ -40,12 +40,21 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Group by client
+    // Group by client / category name
     final Map<String, List<Recording>> grouped = {};
     for (var item in _items) {
-      final name = item.client?.name ?? 'General Shopping';
+      final name = (item.client?.name != null && item.client!.name.trim().isNotEmpty)
+          ? item.client!.name.trim()
+          : 'General Shopping';
       grouped.putIfAbsent(name, () => []).add(item);
     }
+
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == 'General Shopping') return 1;
+        if (b == 'General Shopping') return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
 
     return Scaffold(
       appBar: AppBar(
@@ -59,7 +68,8 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
           ? const Center(child: Text('No active shopping items.', style: TextStyle(color: Colors.grey)))
           : ListView(
               padding: const EdgeInsets.all(16),
-              children: grouped.entries.map((entry) {
+              children: sortedKeys.map((key) {
+                final items = grouped[key]!;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -75,11 +85,11 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                           borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                         ),
                         child: Text(
-                          '👤 Client: ${entry.key}',
+                          '🏷️ Category / Store: $key',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                       ),
-                      ...entry.value.map((item) {
+                      ...items.map((item) {
                         return ListTile(
                           title: Text(item.summary, style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text(item.transcript),

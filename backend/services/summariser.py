@@ -31,16 +31,18 @@ async def summarise_to_three_words(transcript: str) -> str:
             res = await client.post(url, json=payload)
             if res.status_code == 200:
                 raw = res.json().get("response", "").strip()
-                words = re.findall(r'\b\w+\b', raw)
+                words = re.findall(r'\b[A-Za-z0-9]+\b', raw)
                 if len(words) >= 3:
                     return " ".join(words[:3]).title()
                 elif len(words) > 0:
                     return " ".join(words).title()
-            return "Voice Memo Created"
     except Exception as e:
         print(f"Ollama summarisation error: {e}")
-        # Fallback summary from transcript words if Ollama is not ready
-        words = re.findall(r'\b\w+\b', transcript)
-        if len(words) >= 3:
-            return " ".join(words[:3]).title()
-        return "Voice Note Summary"
+
+    # Fallback: extract first 3 words directly from transcript
+    words = re.findall(r'\b[A-Za-z0-9]+\b', transcript)
+    if len(words) >= 3:
+        return " ".join(words[:3]).title()
+    elif len(words) > 0:
+        return " ".join(words).title()
+    return "New Voice Memo"

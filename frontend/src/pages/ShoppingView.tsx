@@ -45,13 +45,19 @@ export default function ShoppingView() {
     window.print()
   }
 
-  // Group active items by client name
+  // Group active items by client / store name
   const groupedActive = activeItems.reduce((acc, item) => {
-    const clientName = item.client?.name || 'General Shopping'
+    const clientName = (item.client?.name && item.client.name.trim()) ? item.client.name.trim() : 'General Shopping'
     if (!acc[clientName]) acc[clientName] = []
     acc[clientName].push(item)
     return acc
   }, {} as Record<string, Recording[]>)
+
+  const sortedActiveKeys = Object.keys(groupedActive).sort((a, b) => {
+    if (a === 'General Shopping') return 1
+    if (b === 'General Shopping') return -1
+    return a.localeCompare(b, undefined, { sensitivity: 'base' })
+  })
 
   return (
     <div style={{ padding: 24 }}>
@@ -83,16 +89,16 @@ export default function ShoppingView() {
         <div>Loading shopping items...</div>
       ) : (
         <div>
-          {Object.keys(groupedActive).length === 0 ? (
+          {sortedActiveKeys.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>No active shopping items.</div>
           ) : (
-            Object.entries(groupedActive).map(([clientName, items]) => (
+            sortedActiveKeys.map(clientName => (
               <div key={clientName} style={{ marginBottom: 28, background: '#FFF', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
                 <div style={{ background: '#1E3A8A', color: '#FFF', padding: '12px 16px', fontWeight: 700, fontSize: 16 }}>
-                  👤 Client / Category: {clientName}
+                  🏷️ Category / Store: {clientName}
                 </div>
                 <div style={{ padding: 16 }}>
-                  {items.map(item => (
+                  {groupedActive[clientName].map(item => (
                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
                       <div>
                         <div style={{ fontSize: 16, fontWeight: 600, color: '#1E293B' }}>{item.summary}</div>

@@ -55,4 +55,10 @@ export const getClients = () =>
 export const createClient = (name: string) =>
   api.post(`/clients`, { name }).then(r => r.data)
 
+export const sendPin = (email: string) =>
+  api.post(`/auth/send-pin`, { email }).then(r => r.data)
+
+export const verifyPin = (email: string, pin: string) =>
+  api.post(`/auth/verify-pin`, { email, pin }).then(r => r.data)
+
 export default api
