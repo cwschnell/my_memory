@@ -80,8 +80,23 @@ async def send_pin(req: SendPinRequest, db: AsyncSession = Depends(get_db)):
         db.add(user)
 
     await db.commit()
+    smtp_set = bool(os.getenv("SMTP_HOST") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"))
     send_pin_email(email_clean, pin)
-    return {"status": "ok", "message": f"4-digit PIN sent to {email_clean}"}
+    
+    resp = {"status": "ok", "message": f"4-digit PIN sent to {email_clean}"}
+    if not smtp_set:
+        resp["dev_pin"] = pin
+        resp["message"] = f"[DEV MODE] SMTP not configured on server. Your 4-digit PIN is: {pin}"
+    return resp
+
+@router.get("/get-pin")
+async def get_pin(email: str, db: AsyncSession = Depends(get_db)):
+    email_clean = email.strip().lower()
+    result = await db.execute(select(UserAuth).where(UserAuth.email == email_clean))
+    user = result.scalar_one_or_none()
+    if not user or not user.pin:
+        raise HTTPException(status_code=404, detail="No active PIN found for this email.")
+    return {"email": email_clean, "pin": user.pin}
 
 @router.post("/verify-pin", response_model=AuthResponse)
 async def verify_pin(req: VerifyPinRequest, db: AsyncSession = Depends(get_db)):

@@ -12,6 +12,8 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [devPin, setDevPin] = useState<string | null>(null)
+
   const handleSendPin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !email.includes('@')) {
@@ -20,9 +22,13 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
     }
     setLoading(true)
     setError(null)
+    setDevPin(null)
     try {
-      await sendPin(email)
+      const res = await sendPin(email)
       setPinSent(true)
+      if (res?.dev_pin) {
+        setDevPin(res.dev_pin)
+      }
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to send PIN.')
     } finally {
@@ -64,6 +70,12 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
         {error && (
           <div style={{ padding: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#DC2626', fontSize: 13, marginBottom: 20 }}>
             {error}
+          </div>
+        )}
+
+        {devPin && (
+          <div style={{ padding: 14, background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, color: '#92400E', fontSize: 13, marginBottom: 20 }}>
+            <strong>💡 DEV MODE:</strong> SMTP email credentials are not configured on Railway. Your 4-digit PIN is: <strong style={{ fontSize: 16, letterSpacing: 2 }}>{devPin}</strong>
           </div>
         )}
 
