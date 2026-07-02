@@ -22,6 +22,14 @@ export interface Recording {
   client?: Client
 }
 
+export interface AdminUser {
+  id: string
+  email: string
+  pin?: string
+  role: string
+  created_at: string
+}
+
 export const getByDate = (dateStr: string) =>
   api.get(`/recordings/by-date/${dateStr}`).then(r => r.data)
 
@@ -60,5 +68,20 @@ export const sendPin = (email: string) =>
 
 export const verifyPin = (email: string, pin: string) =>
   api.post(`/auth/verify-pin`, { email, pin }).then(r => r.data)
+
+export const registerUser = (email: string, pin: string) =>
+  api.post(`/auth/register`, { email, pin }).then(r => r.data)
+
+export const adminListUsers = (admin_email: string) =>
+  api.get(`/auth/admin/users`, { params: { admin_email } }).then(r => r.data)
+
+export const adminCreateUser = (admin_email: string, email: string, pin: string, role: string = "user") =>
+  api.post(`/auth/admin/users`, { admin_email, email, pin, role }).then(r => r.data)
+
+export const adminUpdateUser = (user_id: string, admin_email: string, email?: string, pin?: string, role?: string) =>
+  api.put(`/auth/admin/users/${user_id}`, { admin_email, email, pin, role }).then(r => r.data)
+
+export const adminDeleteUser = (user_id: string, admin_email: string) =>
+  api.delete(`/auth/admin/users/${user_id}`, { params: { admin_email } }).then(r => r.data)
 
 export default api

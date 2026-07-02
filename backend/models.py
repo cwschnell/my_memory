@@ -37,9 +37,10 @@ class UserAuth(Base):
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
     email          = Column(String(255), nullable=False, unique=True)
-    pin            = Column(String(10), nullable=True)
+    pin            = Column(String(50), nullable=True)
     pin_expires_at = Column(DateTime(timezone=True), nullable=True)
     token          = Column(String(255), nullable=True, unique=True)
+    role           = Column(String(20), default="user", nullable=True)
 
 
 class AppRelease(Base):

@@ -16,6 +16,12 @@ async def lifespan(app: FastAPI):
         async def init_db():
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                try:
+                    from sqlalchemy import text
+                    await conn.execute(text("ALTER TABLE user_auth ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'"))
+                    await conn.execute(text("ALTER TABLE user_auth ALTER COLUMN pin TYPE VARCHAR(50)"))
+                except Exception as ex:
+                    logger.warning(f"Column migration warning: {ex}")
         await asyncio.wait_for(init_db(), timeout=5.0)
         logger.info("Database tables initialized successfully.")
     except Exception as e:

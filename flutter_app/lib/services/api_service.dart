@@ -146,6 +146,24 @@ class ApiService {
     throw Exception(errorMsg);
   }
 
+  static Future<Map<String, dynamic>> registerUser(String email, String pin) async {
+    final uri = Uri.parse('$BASE_URL/auth/register');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'pin': pin}),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    String errorMsg = res.body;
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded['detail'] != null) errorMsg = decoded['detail'].toString();
+    } catch (_) {}
+    throw Exception(errorMsg);
+  }
+
   static Future<Map<String, dynamic>> getLatestUpdate(String currentVersion) async {
     final uri = Uri.parse('$BASE_URL/updates/latest?current_version=$currentVersion');
     final res = await http.get(uri);
