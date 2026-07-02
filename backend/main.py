@@ -18,11 +18,13 @@ async def lifespan(app: FastAPI):
                 await conn.run_sync(Base.metadata.create_all)
                 try:
                     from sqlalchemy import text
+                    logger.info("Running table migrations...")
                     await conn.execute(text("ALTER TABLE user_auth ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'"))
                     await conn.execute(text("ALTER TABLE user_auth ALTER COLUMN pin TYPE VARCHAR(50)"))
+                    logger.info("Table migrations completed.")
                 except Exception as ex:
                     logger.warning(f"Column migration warning: {ex}")
-        await asyncio.wait_for(init_db(), timeout=5.0)
+        await asyncio.wait_for(init_db(), timeout=25.0)
         logger.info("Database tables initialized successfully.")
     except Exception as e:
         logger.error(f"Database initialization warning/timeout during startup: {e}")
