@@ -11,7 +11,7 @@ from database import get_db
 from models import Recording, Client
 from schemas import RecordingOut, StatusUpdate, DateUpdate, ClientUpdate
 from services.transcription import transcribe_audio
-from services.summariser import summarise_to_three_words
+from services.summariser import summarise_to_three_words, categorize_shopping_item
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
 UPLOAD_DIR = "/app/uploads"
@@ -41,9 +41,13 @@ async def upload_recording(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
-    # Summarise
+    # Summarise or Categorize
     try:
-        summary = await summarise_to_three_words(transcript)
+        if type == "shopping":
+            cat_res = await categorize_shopping_item(transcript)
+            summary = f"[{cat_res['category']}] {cat_res['item_name']}"
+        else:
+            summary = await summarise_to_three_words(transcript)
     except Exception as e:
         import re
         words = re.findall(r'\b[A-Za-z0-9]+\b', transcript)

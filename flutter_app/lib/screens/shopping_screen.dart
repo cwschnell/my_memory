@@ -49,7 +49,16 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Group by client / category name
+    const categories = [
+      'Vegetables', 'Groceries', 'Meat', 'Dairy', 'Grain',
+      'Electrical', 'Hardware', 'Fuel', 'Spare Parts', 'Paint', 'Tools'
+    ];
+    const categoryIcons = {
+      'Vegetables': '🥕', 'Groceries': '🛒', 'Meat': '🥩', 'Dairy': '🥛', 'Grain': '🌾',
+      'Electrical': '⚡', 'Hardware': '🔩', 'Fuel': '⛽', 'Spare Parts': '⚙️', 'Paint': '🎨', 'Tools': '🛠️'
+    };
+
+    // Group by client / store name
     final Map<String, List<Recording>> grouped = {};
     for (var item in _items) {
       final name = (item.client?.name != null && item.client!.name.trim().isNotEmpty)
@@ -92,56 +101,112 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
             ),
           Expanded(
             child: _loading
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
-        : grouped.isEmpty
-          ? const Center(child: Text('No active shopping items.', style: TextStyle(color: Colors.grey)))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: sortedKeys.map((key) {
-                final items = grouped[key]!;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1E3A8A),
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                        ),
-                        child: Text(
-                          '🏷️ Category / Store: $key',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
+                : grouped.isEmpty
+                    ? const Center(child: Text('No active shopping items.', style: TextStyle(color: Colors.grey)))
+                    : ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: sortedKeys.map((storeName) {
+                          final storeItems = grouped[storeName]!;
+                          final Map<String, List<Map<String, dynamic>>> byCat = {};
+
+                          for (var item in storeItems) {
+                            String cat = 'Groceries';
+                            String itemName = item.summary;
+                            if (item.summary.startsWith('[') && item.summary.contains(']')) {
+                              final endIdx = item.summary.indexOf(']');
+                              final rawCat = item.summary.substring(1, endIdx).trim();
+                              final matched = categories.firstWhere(
+                                (c) => c.toLowerCase() == rawCat.toLowerCase(),
+                                orElse: () => 'Groceries',
+                              );
+                              cat = matched;
+                              itemName = item.summary.substring(endIdx + 1).trim();
+                            }
+                            byCat.putIfAbsent(cat, () => []).add({'item': item, 'name': itemName});
+                          }
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 2,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF1E3A8A),
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                                  ),
+                                  child: Text(
+                                    '🏷️ Store / List: $storeName',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: categories.map((cat) {
+                                      final itemsInCat = byCat[cat];
+                                      if (itemsInCat == null || itemsInCat.isEmpty) return const SizedBox.shrink();
+
+                                      itemsInCat.sort((a, b) => (a['name'] as String)
+                                          .toLowerCase()
+                                          .compareTo((b['name'] as String).toLowerCase()));
+
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 12, bottom: 4),
+                                            child: Text(
+                                              '${categoryIcons[cat] ?? '📦'} $cat'.toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF2563EB),
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                          ),
+                                          const Divider(height: 8),
+                                          ...itemsInCat.map((entry) {
+                                            final item = entry['item'] as Recording;
+                                            final name = entry['name'] as String;
+                                            return ListTile(
+                                              contentPadding: EdgeInsets.zero,
+                                              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                              subtitle: item.transcript != name
+                                                  ? Text(item.transcript, style: const TextStyle(fontSize: 12))
+                                                  : null,
+                                              trailing: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  IconButton(
+                                                    icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                                                    onPressed: () => _markDone(item),
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                                    onPressed: () => _deleteItem(item),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                )
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
-                      ...items.map((item) {
-                        return ListTile(
-                          title: Text(item.summary, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(item.transcript),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-                                onPressed: () => _markDone(item),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _deleteItem(item),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList()
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
           ),
         ],
       ),

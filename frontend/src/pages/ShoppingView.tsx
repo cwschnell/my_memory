@@ -45,6 +45,30 @@ export default function ShoppingView() {
     window.print()
   }
 
+  const CATEGORIES = [
+    'Vegetables', 'Groceries', 'Meat', 'Dairy', 'Grain',
+    'Electrical', 'Hardware', 'Fuel', 'Spare Parts', 'Paint', 'Tools'
+  ]
+
+  const CATEGORY_ICONS: Record<string, string> = {
+    'Vegetables': '🥕', 'Groceries': '🛒', 'Meat': '🥩', 'Dairy': '🥛', 'Grain': '🌾',
+    'Electrical': '⚡', 'Hardware': '🔩', 'Fuel': '⛽', 'Spare Parts': '⚙️', 'Paint': '🎨', 'Tools': '🛠️'
+  }
+
+  // Helper to extract category and item name from summary
+  const parseItem = (item: Recording) => {
+    const sum = item.summary || ''
+    if (sum.startsWith('[') && sum.includes(']')) {
+      const endIdx = sum.indexOf(']')
+      const rawCat = sum.substring(1, endIdx).trim()
+      const matched = CATEGORIES.find(c => c.toLowerCase() === rawCat.toLowerCase())
+      const cat = matched || 'Groceries'
+      const itemName = sum.substring(endIdx + 1).trim() || sum
+      return { category: cat, itemName }
+    }
+    return { category: 'Groceries', itemName: sum }
+  }
+
   // Group active items by client / store name
   const groupedActive = activeItems.reduce((acc, item) => {
     const clientName = (item.client?.name && item.client.name.trim()) ? item.client.name.trim() : 'General Shopping'
@@ -92,37 +116,65 @@ export default function ShoppingView() {
           {sortedActiveKeys.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>No active shopping items.</div>
           ) : (
-            sortedActiveKeys.map(clientName => (
-              <div key={clientName} style={{ marginBottom: 28, background: '#FFF', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-                <div style={{ background: '#1E3A8A', color: '#FFF', padding: '12px 16px', fontWeight: 700, fontSize: 16 }}>
-                  🏷️ Category / Store: {clientName}
+            sortedActiveKeys.map(clientName => {
+              const storeItems = groupedActive[clientName]
+              // Group items in this store by category
+              const byCat: Record<string, Array<{ item: Recording; itemName: string }>> = {}
+              storeItems.forEach(item => {
+                const { category, itemName } = parseItem(item)
+                if (!byCat[category]) byCat[category] = []
+                byCat[category].push({ item, itemName })
+              })
+
+              return (
+                <div key={clientName} style={{ marginBottom: 28, background: '#FFF', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+                  <div style={{ background: '#1E3A8A', color: '#FFF', padding: '12px 16px', fontWeight: 700, fontSize: 16 }}>
+                    🏷️ Store / List: {clientName}
+                  </div>
+                  <div style={{ padding: '8px 16px' }}>
+                    {CATEGORIES.map(cat => {
+                      const itemsInCat = byCat[cat]
+                      if (!itemsInCat || itemsInCat.length === 0) return null
+
+                      // Sort items alphabetically
+                      itemsInCat.sort((a, b) => a.itemName.localeCompare(b.itemName, undefined, { sensitivity: 'base' }))
+
+                      return (
+                        <div key={cat} style={{ margin: '16px 0' }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #E2E8F0', paddingBottom: 4, marginBottom: 8 }}>
+                            {CATEGORY_ICONS[cat] || '📦'} {cat}
+                          </div>
+                          {itemsInCat.map(({ item, itemName }) => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid #F8FAFC' }}>
+                              <div>
+                                <div style={{ fontSize: 15, fontWeight: 600, color: '#1E293B' }}>{itemName}</div>
+                                {item.transcript && item.transcript !== itemName && (
+                                  <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>{item.transcript}</div>
+                                )}
+                              </div>
+                              <div className="no-print" style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                  onClick={() => handleDone(item.id)}
+                                  style={{ background: '#16A34A', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}
+                                >
+                                  Mark Done
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id)}
+                                  style={{ background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div style={{ padding: 16 }}>
-                  {groupedActive[clientName].map(item => (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 600, color: '#1E293B' }}>{item.summary}</div>
-                        <div style={{ fontSize: 14, color: '#475569', marginTop: 4 }}>{item.transcript}</div>
-                      </div>
-                      <div className="no-print" style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => handleDone(item.id)}
-                          style={{ background: '#16A34A', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}
-                        >
-                          Mark Done
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          style={{ background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
 
           {showHistory && (
