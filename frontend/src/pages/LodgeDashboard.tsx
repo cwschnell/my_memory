@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../api/client';
 import { useTranslation } from '../i18n/translations';
 
 interface DashboardSummary {
@@ -30,7 +30,7 @@ export const LodgeDashboard: React.FC<Props> = ({ onNavigate, lang }) => {
     setLoading(true);
     setError('');
     try {
-      const resp = await axios.get('/api/lodge/dashboard');
+      const resp = await api.get('/lodge/dashboard');
       setData(resp.data);
     } catch (err: any) {
       setError('Could not connect to Lodge Dashboard API.');

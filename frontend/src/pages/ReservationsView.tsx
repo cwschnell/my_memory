@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../api/client';
 import { useTranslation } from '../i18n/translations';
 
 interface Guest {
@@ -70,8 +70,8 @@ export const ReservationsView: React.FC = () => {
     setLoading(true);
     try {
       const [resResp, gResp] = await Promise.all([
-        axios.get('/api/lodge/reservations'),
-        axios.get('/api/lodge/guests')
+        api.get('/lodge/reservations'),
+        api.get('/lodge/guests')
       ]);
       setReservations(resResp.data);
       setGuests(gResp.data);
@@ -89,7 +89,7 @@ export const ReservationsView: React.FC = () => {
   const handleCreateReservation = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('/api/lodge/reservations', {
+      await api.post('/lodge/reservations', {
         ...resForm,
         guest_id: resForm.guest_id || null
       });
@@ -104,7 +104,7 @@ export const ReservationsView: React.FC = () => {
     e.preventDefault();
     if (!guestForm.full_name) return;
     try {
-      await axios.post('/api/lodge/guests', guestForm);
+      await api.post('/lodge/guests', guestForm);
       setShowGuestForm(false);
       setGuestForm({ full_name: '', email: '', phone: '', nationality: 'Mozambique', id_number: '', notes: '' });
       loadData();
@@ -115,13 +115,13 @@ export const ReservationsView: React.FC = () => {
 
   const handleDeleteRes = async (id: string) => {
     if (!window.confirm(t.delete + '?')) return;
-    await axios.delete(`/api/lodge/reservations/${id}`);
+    await api.delete(`/lodge/reservations/${id}`);
     loadData();
   };
 
   const handleDeleteGuest = async (id: string) => {
     if (!window.confirm(t.delete + '?')) return;
-    await axios.delete(`/api/lodge/guests/${id}`);
+    await api.delete(`/lodge/guests/${id}`);
     loadData();
   };
 

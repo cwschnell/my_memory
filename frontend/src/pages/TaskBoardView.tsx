@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../api/client';
 import { useTranslation } from '../i18n/translations';
 
 interface LodgeTask {
@@ -42,8 +42,8 @@ export const TaskBoardView: React.FC = () => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const url = selectedArea === 'all' ? '/api/lodge/tasks' : `/api/lodge/tasks?area=${selectedArea}`;
-      const resp = await axios.get(url);
+      const url = selectedArea === 'all' ? '/lodge/tasks' : `/lodge/tasks?area=${selectedArea}`;
+      const resp = await api.get(url);
       setTasks(resp.data);
     } catch (err) {
       console.error('Error fetching tasks:', err);
@@ -58,7 +58,7 @@ export const TaskBoardView: React.FC = () => {
 
   const handleToggleComplete = async (task: LodgeTask) => {
     try {
-      await axios.put(`/api/lodge/tasks/${task.id}`, {
+      await api.put(`/lodge/tasks/${task.id}`, {
         title: task.title,
         assigned_to: task.assigned_to,
         area: task.area,
@@ -77,7 +77,7 @@ export const TaskBoardView: React.FC = () => {
     e.preventDefault();
     if (!form.title) return;
     try {
-      await axios.post('/api/lodge/tasks', form);
+      await api.post('/lodge/tasks', form);
       setShowModal(false);
       setForm({ title: '', assigned_to: '', area: 'housekeeping', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', notes: '' });
       fetchTasks();
@@ -88,7 +88,7 @@ export const TaskBoardView: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm(t.delete + '?')) return;
-    await axios.delete(`/api/lodge/tasks/${id}`);
+    await api.delete(`/lodge/tasks/${id}`);
     fetchTasks();
   };
 

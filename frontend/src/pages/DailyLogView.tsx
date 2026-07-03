@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../api/client';
 import { useTranslation } from '../i18n/translations';
 
 interface DailyLog {
@@ -29,7 +29,7 @@ export const DailyLogView: React.FC = () => {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const resp = await axios.get('/api/lodge/daily-log?limit=30');
+      const resp = await api.get('/lodge/daily-log?limit=30');
       setLogs(resp.data);
     } catch (err) {
       console.error('Error loading daily logs:', err);
@@ -45,7 +45,7 @@ export const DailyLogView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('/api/lodge/daily-log', form);
+      await api.post('/lodge/daily-log', form);
       setShowModal(false);
       fetchLogs();
     } catch (err) {

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const api = axios.create({ 
+export const api = axios.create({ 
   baseURL: import.meta.env.VITE_API_URL || 'https://mymemos-production-d0e1.up.railway.app' 
 })
 

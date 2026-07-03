@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../api/client';
 import { useTranslation } from '../i18n/translations';
 
 interface Incident {
@@ -32,10 +32,10 @@ export const IncidentLogView: React.FC = () => {
   const fetchIncidents = async () => {
     setLoading(true);
     try {
-      let url = '/api/lodge/incidents';
+      let url = '/lodge/incidents';
       if (filter === 'active') url += '?resolved=false';
       if (filter === 'resolved') url += '?resolved=true';
-      const resp = await axios.get(url);
+      const resp = await api.get(url);
       setIncidents(resp.data);
     } catch (err) {
       console.error('Error loading incidents:', err);
@@ -50,7 +50,7 @@ export const IncidentLogView: React.FC = () => {
 
   const handleResolve = async (id: string) => {
     try {
-      await axios.put(`/api/lodge/incidents/${id}/resolve`);
+      await api.put(`/lodge/incidents/${id}/resolve`);
       fetchIncidents();
     } catch (err) {
       alert('Error resolving incident');
@@ -61,7 +61,7 @@ export const IncidentLogView: React.FC = () => {
     e.preventDefault();
     if (!form.title) return;
     try {
-      await axios.post('/api/lodge/incidents', form);
+      await api.post('/lodge/incidents', form);
       setShowModal(false);
       setForm({ title: '', description: '', area: '', severity: 'medium', reported_by: 'Andrisa' });
       fetchIncidents();
@@ -72,7 +72,7 @@ export const IncidentLogView: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm(t.delete + '?')) return;
-    await axios.delete(`/api/lodge/incidents/${id}`);
+    await api.delete(`/lodge/incidents/${id}`);
     fetchIncidents();
   };
 

@@ -15,7 +15,7 @@ from schemas import (
     DailyLogCreate, DailyLogOut
 )
 
-router = APIRouter(prefix="/api/lodge", tags=["lodge"])
+router = APIRouter(prefix="/lodge", tags=["lodge"])
 
 # -----------------------------------------------------------------------------
 # Module 8 Backend: Dashboard Summary Endpoint
