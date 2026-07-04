@@ -5,6 +5,7 @@ import 'screens/record_screen.dart';
 import 'screens/list_screen.dart';
 import 'screens/shopping_screen.dart';
 import 'screens/calendar_screen.dart';
+import 'screens/guest_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 
@@ -87,6 +88,7 @@ class _MainNavState extends State<MainNav> {
     ListScreen(),
     ShoppingScreen(),
     CalendarScreen(),
+    GuestScreen(),
   ];
 
   @override
@@ -153,7 +155,7 @@ class _MainNavState extends State<MainNav> {
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         onTap: (i) {
-          if (i == 4) {
+          if (i == 5) {
             // Logout tapped
             widget.onLogout();
           } else {
@@ -165,6 +167,7 @@ class _MainNavState extends State<MainNav> {
           const BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Memos'),
           const BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Shopping'),
           const BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Calendar'),
+          const BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Guests'),
           const BottomNavigationBarItem(icon: Icon(Icons.logout, color: Colors.redAccent), label: 'Logout'),
         ],
       ),

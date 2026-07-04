@@ -113,7 +113,10 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
 @router.get("/guests", response_model=List[GuestOut])
 async def list_guests(db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(Guest).order_by(Guest.full_name.asc()))
-    return res.scalars().all()
+    guests = res.scalars().all()
+    for g in guests:
+        g.has_passport_image = bool(g.passport_image)
+    return guests
 
 @router.post("/guests", response_model=GuestOut, status_code=201)
 async def create_guest(data: GuestCreate, db: AsyncSession = Depends(get_db)):
@@ -121,6 +124,7 @@ async def create_guest(data: GuestCreate, db: AsyncSession = Depends(get_db)):
     db.add(g)
     await db.commit()
     await db.refresh(g)
+    g.has_passport_image = bool(g.passport_image)
     return g
 
 @router.put("/guests/{guest_id}", response_model=GuestOut)
@@ -133,6 +137,7 @@ async def update_guest(guest_id: uuid.UUID, data: GuestCreate, db: AsyncSession 
         setattr(g, k, v)
     await db.commit()
     await db.refresh(g)
+    g.has_passport_image = bool(g.passport_image)
     return g
 
 @router.delete("/guests/{guest_id}", status_code=204)

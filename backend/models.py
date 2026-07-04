@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Date, DateTime, ForeignKey, Boolean, Numeric, Integer
+from sqlalchemy import Column, String, Text, Date, DateTime, ForeignKey, Boolean, Numeric, Integer, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -57,14 +57,21 @@ class AppRelease(Base):
 class Guest(Base):
     __tablename__ = "guests"
 
-    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
-    full_name   = Column(String(255), nullable=False)
-    email       = Column(String(255), nullable=True)
-    phone       = Column(String(50), nullable=True)
-    nationality = Column(String(100), nullable=True)
-    id_number   = Column(String(100), nullable=True)
-    notes       = Column(Text, nullable=True)
+    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+    full_name         = Column(String(255), nullable=False)
+    email             = Column(String(255), nullable=True)
+    phone             = Column(String(50), nullable=True)
+    nationality       = Column(String(100), nullable=True)
+    id_number         = Column(String(100), nullable=True)       # SA ID / national ID
+    passport_number   = Column(String(100), nullable=True)       # passport document number
+    date_of_birth     = Column(Date, nullable=True)
+    date_of_issue     = Column(Date, nullable=True)
+    date_of_expiry    = Column(Date, nullable=True)
+    issuing_authority = Column(String(255), nullable=True)       # e.g. DEPT OF HOME AFFAIRS
+    place_of_birth    = Column(String(100), nullable=True)       # e.g. ZAF
+    passport_image    = Column(LargeBinary, nullable=True)       # raw JPEG/PNG bytes
+    notes             = Column(Text, nullable=True)
 
     reservations = relationship("Reservation", back_populates="guest", cascade="all, delete-orphan")
 
