@@ -110,6 +110,30 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
 # -----------------------------------------------------------------------------
 # Guests CRUD
 # -----------------------------------------------------------------------------
+def parse_date(date_str: Optional[str]) -> Optional[date]:
+    if not date_str:
+        return None
+    normalized = str(date_str).replace("/", "-").strip()
+    if not normalized or normalized.lower() in ("null", "yyyy-mm-dd", "yyyy/mm/dd"):
+        return None
+    from datetime import datetime
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(normalized, fmt).date()
+        except ValueError:
+            continue
+    try:
+        parts = normalized.split("-")
+        if len(parts) == 3:
+            y = int(parts[0])
+            m = int(parts[1])
+            d = int(parts[2][:2])
+            from datetime import date as date_type
+            return date_type(y, m, d)
+    except Exception:
+        pass
+    return None
+
 @router.get("/guests", response_model=List[GuestOut])
 async def list_guests(db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(Guest).order_by(Guest.full_name.asc()))
@@ -120,9 +144,14 @@ async def list_guests(db: AsyncSession = Depends(get_db)):
 
 @router.post("/guests", response_model=GuestOut, status_code=201)
 async def create_guest(data: GuestCreate, db: AsyncSession = Depends(get_db)):
-    check_in = data.check_in
-    check_out = data.check_out
+    check_in = parse_date(data.check_in)
+    check_out = parse_date(data.check_out)
     guest_data = data.model_dump(exclude={"check_in", "check_out"})
+    
+    # Safely parse date fields
+    guest_data["date_of_birth"] = parse_date(guest_data.get("date_of_birth"))
+    guest_data["date_of_issue"] = parse_date(guest_data.get("date_of_issue"))
+    guest_data["date_of_expiry"] = parse_date(guest_data.get("date_of_expiry"))
     
     g = Guest(**guest_data)
     db.add(g)
@@ -152,9 +181,14 @@ async def update_guest(guest_id: uuid.UUID, data: GuestCreate, db: AsyncSession 
     if not g:
         raise HTTPException(status_code=404, detail="Guest not found")
         
-    check_in = data.check_in
-    check_out = data.check_out
+    check_in = parse_date(data.check_in)
+    check_out = parse_date(data.check_out)
     guest_data = data.model_dump(exclude={"check_in", "check_out"})
+    
+    # Safely parse date fields
+    guest_data["date_of_birth"] = parse_date(guest_data.get("date_of_birth"))
+    guest_data["date_of_issue"] = parse_date(guest_data.get("date_of_issue"))
+    guest_data["date_of_expiry"] = parse_date(guest_data.get("date_of_expiry"))
     
     for k, v in guest_data.items():
         setattr(g, k, v)
