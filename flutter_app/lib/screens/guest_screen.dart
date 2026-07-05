@@ -94,11 +94,21 @@ class _GuestScreenState extends State<GuestScreen> {
   Future<void> _loadGuests() async {
     setState(() => _loading = true);
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final lodgeId = prefs.getString('active_lodge_id') ?? '';
+      
+      final Map<String, String> headers = {
+        'Authorization': 'Bearer $_token',
+      };
+      if (lodgeId.isNotEmpty) {
+        headers['X-Lodge-Id'] = lodgeId;
+      }
+
       if (_selectedFilterDate != null) {
         final dateStr = '${_selectedFilterDate!.year}-${_selectedFilterDate!.month.toString().padLeft(2, '0')}-${_selectedFilterDate!.day.toString().padLeft(2, '0')}';
         final resp = await http.get(
           Uri.parse('$BASE_URL/passport/search?date=$dateStr'),
-          headers: {'Authorization': 'Bearer $_token'},
+          headers: headers,
         );
         if (resp.statusCode == 200) {
           final list = json.decode(resp.body) as List;
@@ -107,7 +117,7 @@ class _GuestScreenState extends State<GuestScreen> {
       } else {
         final resp = await http.get(
           Uri.parse('$BASE_URL/lodge/guests'),
-          headers: {'Authorization': 'Bearer $_token'},
+          headers: headers,
         );
         if (resp.statusCode == 200) {
           final list = json.decode(resp.body) as List;
@@ -119,6 +129,28 @@ class _GuestScreenState extends State<GuestScreen> {
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  void _clearFilterDate() {
+    setState(() => _selectedFilterDate = null);
+    _loadGuests();
+  }
+
+  void _openNewGuestForm({GuestModel? prefilled, File? passportImage}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => GuestFormSheet(
+        token: _token,
+        prefilled: prefilled,
+        passportImageFile: passportImage,
+        onSaved: _loadGuests,
+      ),
+    );
   }
 
   Future<void> _selectFilterDate() async {
@@ -145,28 +177,6 @@ class _GuestScreenState extends State<GuestScreen> {
       setState(() => _selectedFilterDate = picked);
       _loadGuests();
     }
-  }
-
-  void _clearFilterDate() {
-    setState(() => _selectedFilterDate = null);
-    _loadGuests();
-  }
-
-  void _openNewGuestForm({GuestModel? prefilled, File? passportImage}) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => GuestFormSheet(
-        token: _token,
-        prefilled: prefilled,
-        passportImageFile: passportImage,
-        onSaved: _loadGuests,
-      ),
-    );
   }
 
   @override
@@ -222,9 +232,12 @@ class _GuestScreenState extends State<GuestScreen> {
                 : _guests.isEmpty
                      ? _emptyState()
                      : ListView.builder(
-                         padding: const EdgeInsets.all(12),
-                         itemCount: _guests.length,
-                         itemBuilder: (_, i) => _GuestCard(guest: _guests[i]),
+                          padding: const EdgeInsets.all(12),
+                          itemCount: _guests.length,
+                          itemBuilder: (_, i) => _GuestCard(
+                            guest: _guests[i],
+                            onEdit: () => _openNewGuestForm(prefilled: _guests[i]),
+                          ),
                        ),
           ),
         ],
@@ -332,7 +345,8 @@ class _GuestScreenState extends State<GuestScreen> {
 // ─────────────────────────────────────────────────────────────
 class _GuestCard extends StatelessWidget {
   final GuestModel guest;
-  const _GuestCard({required this.guest});
+  final VoidCallback onEdit;
+  const _GuestCard({required this.guest, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -364,9 +378,19 @@ class _GuestCard extends StatelessWidget {
               Text('Scanned by: ${guest.userEmail}', style: const TextStyle(color: Color(0xFF475569), fontSize: 11)),
           ],
         ),
-        trailing: guest.hasPassportImage
-            ? const Icon(Icons.photo_camera, color: Color(0xFF059669), size: 18)
-            : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (guest.hasPassportImage)
+              const Icon(Icons.photo_camera, color: Color(0xFF059669), size: 18),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.edit, color: Color(0xFF3B82F6), size: 20),
+              onPressed: onEdit,
+              tooltip: 'Edit Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -476,7 +500,6 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
       setState(() {
         if (isCheckIn) {
           _checkInDate = picked;
-          // Ensure check-out is at least the next day
           if (_checkOutDate.isBefore(_checkInDate) || _checkOutDate.isAtSameMomentAs(_checkInDate)) {
             _checkOutDate = _checkInDate.add(const Duration(days: 1));
           }
@@ -491,9 +514,9 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
-    // Retrieve active logged in email
     final prefs = await SharedPreferences.getInstance();
     final authEmail = prefs.getString('auth_email') ?? '';
+    final lodgeId = prefs.getString('active_lodge_id') ?? '';
 
     final checkInStr = '${_checkInDate.year}-${_checkInDate.month.toString().padLeft(2, '0')}-${_checkInDate.day.toString().padLeft(2, '0')}';
     final checkOutStr = '${_checkOutDate.year}-${_checkOutDate.month.toString().padLeft(2, '0')}-${_checkOutDate.day.toString().padLeft(2, '0')}';
@@ -517,14 +540,22 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
         'check_out':         checkOutStr,
       });
 
-      final resp = await http.post(
-        Uri.parse('$BASE_URL/lodge/guests'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-        body: body,
-      );
+      final Map<String, String> headers = {
+        'Authorization': 'Bearer ${widget.token}',
+        'Content-Type': 'application/json',
+      };
+      if (lodgeId.isNotEmpty) {
+        headers['X-Lodge-Id'] = lodgeId;
+      }
+
+      final isEditing = widget.prefilled != null && widget.prefilled!.id.isNotEmpty;
+      final url = isEditing
+          ? '$BASE_URL/lodge/guests/${widget.prefilled!.id}'
+          : '$BASE_URL/lodge/guests';
+
+      final resp = await (isEditing
+          ? http.put(Uri.parse(url), headers: headers, body: body)
+          : http.post(Uri.parse(url), headers: headers, body: body));
 
       if (resp.statusCode != 200 && resp.statusCode != 201) {
         throw Exception('Save failed: ${resp.body}');
@@ -578,7 +609,9 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isScanned = widget.prefilled != null;
+    final isPrefilled = widget.prefilled != null;
+    final isEditing = isPrefilled && widget.prefilled!.id.isNotEmpty;
+
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.92,
@@ -594,7 +627,6 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle
               Center(child: Container(width: 40, height: 4,
                   decoration: BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
@@ -602,11 +634,13 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
                 const Icon(Icons.person_add, color: Color(0xFF3B82F6)),
                 const SizedBox(width: 8),
                 Text(
-                  isScanned ? 'New Guest — Passport Scanned ✓' : 'New Guest Profile',
+                  isEditing 
+                      ? 'Edit Guest Profile' 
+                      : (isPrefilled ? 'New Guest — Passport Scanned ✓' : 'New Guest Profile'),
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ]),
-              if (isScanned) ...[
+              if (isPrefilled && !isEditing) ...[
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -638,7 +672,6 @@ class _GuestFormSheetState extends State<GuestFormSheet> {
               _field('Phone', _phone, keyboard: TextInputType.phone),
               _field('Email', _email, keyboard: TextInputType.emailAddress),
 
-              // RESERVATION DATE PICKERS
               const _SectionLabel('RESERVATION DATES'),
               Row(
                 children: [

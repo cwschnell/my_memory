@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 import 'screens/record_screen.dart';
 import 'screens/list_screen.dart';
 import 'screens/shopping_screen.dart';
@@ -67,6 +69,10 @@ class _AuthGuardState extends State<AuthGuard> {
     return MainNav(onLogout: () async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('auth_token');
+      await prefs.remove('auth_email');
+      await prefs.remove('auth_role');
+      await prefs.remove('active_lodge_id');
+      await prefs.remove('active_lodge_name');
       setState(() => _loggedIn = false);
     });
   }
@@ -84,18 +90,59 @@ class _MainNavState extends State<MainNav> {
   bool _updateAvailable = false;
   String _apkUrl = '';
 
-  final List<Widget> _screens = const [
-    RecordScreen(),
-    ListScreen(),
-    ShoppingScreen(),
-    CalendarScreen(),
-    GuestScreen(),
+  List<Map<String, dynamic>> _lodgesList = [];
+  String? _activeLodgeId;
+  String _activeLodgeName = '';
+
+  List<Widget> get _screens => [
+    RecordScreen(key: ValueKey(_activeLodgeId)),
+    ListScreen(key: ValueKey(_activeLodgeId)),
+    ShoppingScreen(key: ValueKey(_activeLodgeId)),
+    CalendarScreen(key: ValueKey(_activeLodgeId)),
+    GuestScreen(key: ValueKey(_activeLodgeId)),
   ];
 
   @override
   void initState() {
     super.initState();
+    _loadLodgeData();
     _checkForUpdates();
+  }
+
+  Future<void> _loadLodgeData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('auth_email') ?? '';
+    final activeId = prefs.getString('active_lodge_id') ?? '';
+    final activeName = prefs.getString('active_lodge_name') ?? 'Default Lodge';
+
+    setState(() {
+      _activeLodgeId = activeId;
+      _activeLodgeName = activeName;
+    });
+
+    try {
+      final uri = Uri.parse('$BASE_URL/auth/lodges?email=${Uri.encodeComponent(email)}');
+      final resp = await http.get(uri);
+      if (resp.statusCode == 200) {
+        final List list = json.decode(resp.body);
+        if (mounted) {
+          setState(() {
+            _lodgesList = list.map((e) => Map<String, dynamic>.from(e)).toList();
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _switchLodge(String id) async {
+    final name = _lodgesList.firstWhere((l) => l['id'] == id)['name'] ?? 'Default Lodge';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('active_lodge_id', id);
+    await prefs.setString('active_lodge_name', name);
+    setState(() {
+      _activeLodgeId = id;
+      _activeLodgeName = name;
+    });
   }
 
   Future<void> _checkForUpdates() async {
@@ -129,6 +176,51 @@ class _MainNavState extends State<MainNav> {
     return Scaffold(
       body: Column(
         children: [
+          // Thin global lodge selection status header
+          SafeArea(
+            bottom: false,
+            child: Container(
+              color: const Color(0xFF1E293B),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.holiday_village, color: Color(0xFF38BDF8), size: 18),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Active: $_activeLodgeName',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_lodgesList.isNotEmpty)
+                    DropdownButton<String>(
+                      value: _activeLodgeId,
+                      dropdownColor: const Color(0xFF1E293B),
+                      icon: const Icon(Icons.swap_horiz, color: Color(0xFF38BDF8), size: 18),
+                      underline: Container(),
+                      style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 12),
+                      onChanged: (id) {
+                        if (id != null) _switchLodge(id);
+                      },
+                      items: _lodgesList.map((l) {
+                        return DropdownMenuItem<String>(
+                          value: l['id'],
+                          child: Text(l['name']),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ),
           Expanded(child: _screens[_currentIndex]),
           Container(
             width: double.infinity,
@@ -166,19 +258,18 @@ class _MainNavState extends State<MainNav> {
         type: BottomNavigationBarType.fixed,
         onTap: (i) {
           if (i == 5) {
-            // Logout tapped
             widget.onLogout();
           } else {
             setState(() => _currentIndex = i);
           }
         },
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.mic), label: 'Record'),
-          const BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Memos'),
-          const BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Shopping'),
-          const BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Calendar'),
-          const BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Guests'),
-          const BottomNavigationBarItem(icon: Icon(Icons.logout, color: Colors.redAccent), label: 'Logout'),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.mic), label: 'Record'),
+          BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Memos'),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Shopping'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Calendar'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Guests'),
+          BottomNavigationBarItem(icon: Icon(Icons.logout, color: Colors.redAccent), label: 'Logout'),
         ],
       ),
     );

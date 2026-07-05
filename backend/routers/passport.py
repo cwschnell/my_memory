@@ -48,6 +48,7 @@ Return ONLY a valid JSON object with exactly these keys (use null for any field 
 
 Rules:
 - Dates MUST be in YYYY-MM-DD format. Convert "02 SEP 1952" → "1952-09-02".
+- Pay extreme attention to the Date of Issue and Date of Expiry! They are critical. Locate them carefully on the personal details page (often labeled 'Date of issue / Date de délivrance' and 'Date of expiry / Date d'expiration'). Extract both and format them as YYYY-MM-DD.
 - full_name: given name first, then surname. E.g. "CHRISTOPH WILHELM SCHNELL".
 - Do not include any markdown formatting or text outside the JSON object.
 - If you cannot read a field clearly, set it to null rather than guessing.

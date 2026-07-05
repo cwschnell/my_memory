@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Path
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Path, Header
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, case
@@ -16,6 +16,14 @@ from services.summariser import summarise_to_three_words, categorize_shopping_it
 router = APIRouter(prefix="/recordings", tags=["recordings"])
 UPLOAD_DIR = "/app/uploads"
 
+async def get_active_lodge_id(x_lodge_id: Optional[str] = Header(None, alias="X-Lodge-Id")) -> Optional[uuid.UUID]:
+    if not x_lodge_id:
+        return None
+    try:
+        return uuid.UUID(x_lodge_id)
+    except ValueError:
+        return None
+
 @router.post("/upload", response_model=RecordingOut, status_code=201)
 async def upload_recording(
     audio: UploadFile = File(...),
@@ -23,6 +31,7 @@ async def upload_recording(
     client_id: Optional[str] = Form(None),
     client_name: Optional[str] = Form(None),
     user_email: Optional[str] = Form(None),
+    lodge_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Receive audio from app, transcribe/translate, summarise, store."""
@@ -77,6 +86,13 @@ async def upload_recording(
     rec_type = type if type in ("memo", "shopping") else "memo"
     date_rec = date.today() if rec_type == "memo" else None
 
+    target_lodge_id = None
+    if lodge_id and lodge_id.strip() and lodge_id.strip().lower() not in ("null", "none"):
+        try:
+            target_lodge_id = uuid.UUID(lodge_id.strip())
+        except ValueError:
+            target_lodge_id = None
+
     recording = Recording(
         audio_path=filepath,
         transcript=transcript,
@@ -85,7 +101,8 @@ async def upload_recording(
         type=rec_type,
         client_id=target_client_id,
         date_recorded=date_rec,
-        user_email=user_email
+        user_email=user_email,
+        lodge_id=target_lodge_id
     )
     db.add(recording)
     await db.commit()
@@ -101,7 +118,8 @@ async def upload_recording(
 async def get_by_date(
     date_str: str = Path(..., description="Date in YYYY-MM-DD format"),
     user_email: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
 ):
     """
     Return all memo recordings for a specific date AND any past unresolved Urgent memos
@@ -122,6 +140,8 @@ async def get_by_date(
     ]
     if user_email:
         conditions.append(Recording.user_email == user_email)
+    if lodge_id:
+        conditions.append(Recording.lodge_id == lodge_id)
 
     stmt = (
         select(Recording)
@@ -137,11 +157,17 @@ async def get_by_date(
 
 
 @router.get("/shopping/active", response_model=List[RecordingOut])
-async def get_active_shopping(user_email: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_active_shopping(
+    user_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     """Return active (not done) shopping list items grouped by client."""
     conditions = [Recording.type == "shopping", Recording.status != "done"]
     if user_email:
         conditions.append(Recording.user_email == user_email)
+    if lodge_id:
+        conditions.append(Recording.lodge_id == lodge_id)
     stmt = (
         select(Recording)
         .options(selectinload(Recording.client))
@@ -153,11 +179,17 @@ async def get_active_shopping(user_email: Optional[str] = None, db: AsyncSession
 
 
 @router.get("/shopping/history", response_model=List[RecordingOut])
-async def get_shopping_history(user_email: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_shopping_history(
+    user_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     """Return historical completed ('done') shopping list items."""
     conditions = [Recording.type == "shopping", Recording.status == "done"]
     if user_email:
         conditions.append(Recording.user_email == user_email)
+    if lodge_id:
+        conditions.append(Recording.lodge_id == lodge_id)
     stmt = (
         select(Recording)
         .options(selectinload(Recording.client))
@@ -169,11 +201,17 @@ async def get_shopping_history(user_email: Optional[str] = None, db: AsyncSessio
 
 
 @router.get("/calendar/done-counts")
-async def get_calendar_done_counts(user_email: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_calendar_done_counts(
+    user_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     """Return counts of completed ('done') memos grouped by date_recorded for calendar view."""
     conditions = [Recording.type == "memo", Recording.status == "done", Recording.date_recorded.isnot(None)]
     if user_email:
         conditions.append(Recording.user_email == user_email)
+    if lodge_id:
+        conditions.append(Recording.lodge_id == lodge_id)
     stmt = (
         select(Recording.date_recorded, func.count(Recording.id).label("count"))
         .where(and_(*conditions))
@@ -188,7 +226,8 @@ async def get_calendar_done_counts(user_email: Optional[str] = None, db: AsyncSe
 async def get_done_by_date(
     date_str: str = Path(..., description="Date in YYYY-MM-DD format"),
     user_email: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
 ):
     """Return all completed ('done') memos for a specific past date."""
     try:
@@ -199,6 +238,8 @@ async def get_done_by_date(
     conditions = [Recording.type == "memo", Recording.status == "done", Recording.date_recorded == target_date]
     if user_email:
         conditions.append(Recording.user_email == user_email)
+    if lodge_id:
+        conditions.append(Recording.lodge_id == lodge_id)
     stmt = (
         select(Recording)
         .options(selectinload(Recording.client))

@@ -7,7 +7,7 @@ import random, uuid, os, logging
 from typing import Optional, List
 
 from database import get_db
-from models import UserAuth
+from models import UserAuth, Lodge
 
 logger = logging.getLogger("auth")
 
@@ -282,3 +282,53 @@ async def admin_delete_user(user_id: str, admin_email: str, db: AsyncSession = D
     await db.delete(user)
     await db.commit()
     return {"status": "ok", "message": f"User {user.email} deleted."}
+
+
+# ==========================================
+# LODGE MULTI-SCOPING CONFIGURATION ENDPOINTS
+# ==========================================
+
+class LodgeSyncRequest(BaseModel):
+    email: str
+    names: List[str]
+
+@router.get("/lodges")
+async def get_user_lodges(email: str, db: AsyncSession = Depends(get_db)):
+    clean_email = email.strip().lower()
+    res = await db.execute(select(Lodge).where(Lodge.user_email == clean_email).order_by(Lodge.created_at.asc()))
+    lodges = res.scalars().all()
+    
+    if not lodges:
+        new_lodge = Lodge(name="Default Lodge", user_email=clean_email)
+        db.add(new_lodge)
+        await db.commit()
+        await db.refresh(new_lodge)
+        lodges = [new_lodge]
+        
+    return [{"id": str(l.id), "name": l.name} for l in lodges]
+
+@router.post("/lodges/sync")
+async def sync_user_lodges(req: LodgeSyncRequest, db: AsyncSession = Depends(get_db)):
+    clean_email = req.email.strip().lower()
+    names_clean = [n.strip() for n in req.names if n.strip()][:5]
+    
+    res = await db.execute(select(Lodge).where(Lodge.user_email == clean_email).order_by(Lodge.created_at.asc()))
+    existing = res.scalars().all()
+    
+    for i in range(5):
+        name = names_clean[i] if i < len(names_clean) else None
+        if i < len(existing):
+            if name:
+                existing[i].name = name
+            else:
+                await db.delete(existing[i])
+        else:
+            if name:
+                new_lodge = Lodge(name=name, user_email=clean_email)
+                db.add(new_lodge)
+                
+    await db.commit()
+    
+    res = await db.execute(select(Lodge).where(Lodge.user_email == clean_email).order_by(Lodge.created_at.asc()))
+    updated = res.scalars().all()
+    return [{"id": str(l.id), "name": l.name} for l in updated]

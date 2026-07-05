@@ -47,6 +47,7 @@ export const ReservationsView: React.FC = () => {
   // Modal forms
   const [showResForm, setShowResForm] = useState<boolean>(false);
   const [showGuestForm, setShowGuestForm] = useState<boolean>(false);
+  const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
 
   // Passport Scan Upload/Rotation states
   const [passportFile, setPassportFile] = useState<File | null>(null);
@@ -134,6 +135,28 @@ export const ReservationsView: React.FC = () => {
     }
   };
 
+  const handleEditGuestClick = (g: Guest) => {
+    const linkedRes = reservations.find((r) => r.guest_id === g.id);
+    setEditingGuestId(g.id);
+    setGuestForm({
+      full_name: g.full_name || '',
+      email: g.email || '',
+      phone: g.phone || '',
+      nationality: g.nationality || '',
+      id_number: g.id_number || '',
+      passport_number: g.passport_number || '',
+      date_of_birth: g.date_of_birth || '',
+      date_of_issue: g.date_of_issue || '',
+      date_of_expiry: g.date_of_expiry || '',
+      issuing_authority: g.issuing_authority || '',
+      place_of_birth: g.place_of_birth || '',
+      check_in: linkedRes ? linkedRes.check_in : '',
+      check_out: linkedRes ? linkedRes.check_out : '',
+      notes: g.notes || ''
+    });
+    setShowGuestForm(true);
+  };
+
   const handleCreateGuest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guestForm.full_name) return;
@@ -153,8 +176,13 @@ export const ReservationsView: React.FC = () => {
         check_out: checkOutDate
       };
 
-      const resp = await api.post('/lodge/guests', payload);
-      const guestId = resp.data.id;
+      let guestId = editingGuestId;
+      if (editingGuestId) {
+        await api.put(`/lodge/guests/${editingGuestId}`, payload);
+      } else {
+        const resp = await api.post('/lodge/guests', payload);
+        guestId = resp.data.id;
+      }
 
       // Upload passport image if we scanned one
       if (passportFile && guestId) {
@@ -200,6 +228,7 @@ export const ReservationsView: React.FC = () => {
       });
       setPassportFile(null);
       setRotation(0);
+      setEditingGuestId(null);
       loadData();
     } catch (err) {
       alert('Error saving guest profile: ' + err);
@@ -318,7 +347,17 @@ export const ReservationsView: React.FC = () => {
             {t.newReservation}
           </button>
           <button
-            onClick={() => setShowGuestForm(true)}
+            onClick={() => {
+              setEditingGuestId(null);
+              setGuestForm({
+                full_name: '', email: '', phone: '', nationality: '', id_number: '',
+                passport_number: '', date_of_birth: '', date_of_issue: '', date_of_expiry: '',
+                issuing_authority: '', place_of_birth: '', check_in: '', check_out: '', notes: ''
+              });
+              setPassportFile(null);
+              setRotation(0);
+              setShowGuestForm(true);
+            }}
             style={{
               padding: '0.6rem 1.2rem',
               background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
@@ -595,10 +634,18 @@ export const ReservationsView: React.FC = () => {
                         )}
                         {!g.passport_number && !g.id_number ? '—' : null}
                       </td>
-                      <td style={{ padding: '1rem' }}>
+                      <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleEditGuestClick(g)}
+                          style={{ background: 'transparent', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '1.1rem' }}
+                          title="Edit Profile"
+                        >
+                          ✏️
+                        </button>
                         <button
                           onClick={() => handleDeleteGuest(g.id)}
                           style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem' }}
+                          title="Delete"
                         >
                           🗑️
                         </button>

@@ -28,6 +28,7 @@ class Recording(Base):
     type          = Column(String(20), nullable=False, default="memo")
     client_id     = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)
     user_email    = Column(String(255), nullable=True, index=True)
+    lodge_id      = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)
 
     client        = relationship("Client", back_populates="recordings")
 
@@ -42,6 +43,15 @@ class UserAuth(Base):
     pin_expires_at = Column(DateTime(timezone=True), nullable=True)
     token          = Column(String(255), nullable=True, unique=True)
     role           = Column(String(20), default="user", nullable=True)
+
+
+class Lodge(Base):
+    __tablename__ = "lodges"
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    name       = Column(String(255), nullable=False)
+    user_email = Column(String(255), nullable=False, index=True)
 
 
 class AppRelease(Base):
@@ -72,6 +82,7 @@ class Guest(Base):
     place_of_birth    = Column(String(100), nullable=True)       # e.g. ZAF
     passport_image    = Column(LargeBinary, nullable=True)       # raw JPEG/PNG bytes
     user_email        = Column(String(255), nullable=True, index=True) # owner email
+    lodge_id          = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)
     notes             = Column(Text, nullable=True)
 
     reservations = relationship("Reservation", back_populates="guest", cascade="all, delete-orphan")
@@ -110,6 +121,7 @@ class LodgeTask(Base):
     recurrence  = Column(String(20), default="none")   # none, daily, weekly, monthly
     is_complete = Column(Boolean, default=False)
     notes       = Column(Text, nullable=True)
+    lodge_id    = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)
 
 
 class Incident(Base):
@@ -124,6 +136,7 @@ class Incident(Base):
     reported_by = Column(String(100), nullable=True)
     is_resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
+    lodge_id    = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)
 
 
 class DailyLog(Base):
@@ -136,3 +149,4 @@ class DailyLog(Base):
     revenue_usd     = Column(Numeric(10, 2), default=0)
     notes           = Column(Text, nullable=True)
     weather         = Column(String(100), nullable=True)
+    lodge_id        = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)

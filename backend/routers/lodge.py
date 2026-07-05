@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func, desc
 from datetime import date, datetime, timedelta
@@ -17,34 +17,73 @@ from schemas import (
 
 router = APIRouter(prefix="/lodge", tags=["lodge"])
 
+async def get_active_lodge_id(x_lodge_id: Optional[str] = Header(None, alias="X-Lodge-Id")) -> Optional[uuid.UUID]:
+    if not x_lodge_id:
+        return None
+    try:
+        return uuid.UUID(x_lodge_id)
+    except ValueError:
+        return None
+
+def parse_date(date_str: Optional[str]) -> Optional[date]:
+    if not date_str:
+        return None
+    normalized = str(date_str).replace("/", "-").strip()
+    if not normalized or normalized.lower() in ("null", "yyyy-mm-dd", "yyyy/mm/dd"):
+        return None
+    from datetime import datetime
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(normalized, fmt).date()
+        except ValueError:
+            continue
+    try:
+        parts = normalized.split("-")
+        if len(parts) == 3:
+            y = int(parts[0])
+            m = int(parts[1])
+            d = int(parts[2][:2])
+            from datetime import date as date_type
+            return date_type(y, m, d)
+    except Exception:
+        pass
+    return None
+
 # -----------------------------------------------------------------------------
 # Module 8 Backend: Dashboard Summary Endpoint
 # -----------------------------------------------------------------------------
 @router.get("/dashboard")
-async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
+async def get_dashboard_summary(
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     today = date.today()
 
     # Check-ins today
-    checkins_res = await db.execute(
-        select(Reservation).where(Reservation.check_in == today).options()
-    )
+    checkins_stmt = select(Reservation).join(Guest).where(Reservation.check_in == today)
+    if lodge_id:
+        checkins_stmt = checkins_stmt.where(Guest.lodge_id == lodge_id)
+    checkins_res = await db.execute(checkins_stmt)
     checkins = checkins_res.scalars().all()
 
     # Check-outs today
-    checkouts_res = await db.execute(
-        select(Reservation).where(Reservation.check_out == today)
-    )
+    checkouts_stmt = select(Reservation).join(Guest).where(Reservation.check_out == today)
+    if lodge_id:
+        checkouts_stmt = checkouts_stmt.where(Guest.lodge_id == lodge_id)
+    checkouts_res = await db.execute(checkouts_stmt)
     checkouts = checkouts_res.scalars().all()
 
     # In-house tonight (check_in <= today < check_out and status != cancelled)
-    inhouse_res = await db.execute(
-        select(Reservation).where(
-            Reservation.check_in <= today,
-            Reservation.check_out > today,
-            Reservation.status != "cancelled"
-        )
+    inhouse_stmt = select(Reservation).join(Guest).where(
+        Reservation.check_in <= today,
+        Reservation.check_out > today,
+        Reservation.status != "cancelled"
     )
+    if lodge_id:
+        inhouse_stmt = inhouse_stmt.where(Guest.lodge_id == lodge_id)
+    inhouse_res = await db.execute(inhouse_stmt)
     inhouse = inhouse_res.scalars().all()
+    
     inhouse_guest_ids = [r.guest_id for r in inhouse if r.guest_id]
     guests_map = {}
     if inhouse_guest_ids:
@@ -60,28 +99,30 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
         total_inhouse_count += (r.num_adults or 1) + (r.num_children or 0)
 
     # Tasks due today or overdue
-    tasks_res = await db.execute(
-        select(LodgeTask).where(
-            LodgeTask.is_complete == False,
-            LodgeTask.due_date <= today
-        ).order_by(LodgeTask.due_date.asc())
+    tasks_stmt = select(LodgeTask).where(
+        LodgeTask.is_complete == False,
+        LodgeTask.due_date <= today
     )
+    if lodge_id:
+        tasks_stmt = tasks_stmt.where(LodgeTask.lodge_id == lodge_id)
+    tasks_res = await db.execute(tasks_stmt.order_by(LodgeTask.due_date.asc()))
     tasks_due = tasks_res.scalars().all()
 
     # Open Incidents
-    incidents_res = await db.execute(
-        select(Incident).where(Incident.is_resolved == False).order_by(
-            # Sort critical first
-            desc(Incident.severity == "critical"),
-            desc(Incident.created_at)
-        )
-    )
+    incidents_stmt = select(Incident).where(Incident.is_resolved == False)
+    if lodge_id:
+        incidents_stmt = incidents_stmt.where(Incident.lodge_id == lodge_id)
+    incidents_res = await db.execute(incidents_stmt.order_by(
+        desc(Incident.severity == "critical"),
+        desc(Incident.created_at)
+    ))
     open_incidents = incidents_res.scalars().all()
 
     # Recent Memos (from recordings table where type='memo')
-    memos_res = await db.execute(
-        select(Recording).where(Recording.type == "memo").order_by(desc(Recording.created_at)).limit(5)
-    )
+    memos_stmt = select(Recording).where(Recording.type == "memo")
+    if lodge_id:
+        memos_stmt = memos_stmt.where(Recording.lodge_id == lodge_id)
+    memos_res = await db.execute(memos_stmt.order_by(desc(Recording.created_at)).limit(5))
     recent_memos = memos_res.scalars().all()
 
     return {
@@ -110,40 +151,26 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
 # -----------------------------------------------------------------------------
 # Guests CRUD
 # -----------------------------------------------------------------------------
-def parse_date(date_str: Optional[str]) -> Optional[date]:
-    if not date_str:
-        return None
-    normalized = str(date_str).replace("/", "-").strip()
-    if not normalized or normalized.lower() in ("null", "yyyy-mm-dd", "yyyy/mm/dd"):
-        return None
-    from datetime import datetime
-    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(normalized, fmt).date()
-        except ValueError:
-            continue
-    try:
-        parts = normalized.split("-")
-        if len(parts) == 3:
-            y = int(parts[0])
-            m = int(parts[1])
-            d = int(parts[2][:2])
-            from datetime import date as date_type
-            return date_type(y, m, d)
-    except Exception:
-        pass
-    return None
-
 @router.get("/guests", response_model=List[GuestOut])
-async def list_guests(db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(Guest).order_by(Guest.full_name.asc()))
+async def list_guests(
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(Guest)
+    if lodge_id:
+        stmt = stmt.where(Guest.lodge_id == lodge_id)
+    res = await db.execute(stmt.order_by(Guest.full_name.asc()))
     guests = res.scalars().all()
     for g in guests:
         g.has_passport_image = bool(g.passport_image)
     return guests
 
 @router.post("/guests", response_model=GuestOut, status_code=201)
-async def create_guest(data: GuestCreate, db: AsyncSession = Depends(get_db)):
+async def create_guest(
+    data: GuestCreate,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     check_in = parse_date(data.check_in)
     check_out = parse_date(data.check_out)
     guest_data = data.model_dump(exclude={"check_in", "check_out"})
@@ -154,6 +181,9 @@ async def create_guest(data: GuestCreate, db: AsyncSession = Depends(get_db)):
     guest_data["date_of_expiry"] = parse_date(guest_data.get("date_of_expiry"))
     
     g = Guest(**guest_data)
+    if lodge_id:
+        g.lodge_id = lodge_id
+        
     db.add(g)
     await db.commit()
     await db.refresh(g)
@@ -175,8 +205,16 @@ async def create_guest(data: GuestCreate, db: AsyncSession = Depends(get_db)):
     return g
 
 @router.put("/guests/{guest_id}", response_model=GuestOut)
-async def update_guest(guest_id: uuid.UUID, data: GuestCreate, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(Guest).where(Guest.id == guest_id))
+async def update_guest(
+    guest_id: uuid.UUID,
+    data: GuestCreate,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(Guest).where(Guest.id == guest_id)
+    if lodge_id:
+        stmt = stmt.where(Guest.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     g = res.scalar_one_or_none()
     if not g:
         raise HTTPException(status_code=404, detail="Guest not found")
@@ -218,8 +256,15 @@ async def update_guest(guest_id: uuid.UUID, data: GuestCreate, db: AsyncSession 
     return g
 
 @router.delete("/guests/{guest_id}", status_code=204)
-async def delete_guest(guest_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(Guest).where(Guest.id == guest_id))
+async def delete_guest(
+    guest_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(Guest).where(Guest.id == guest_id)
+    if lodge_id:
+        stmt = stmt.where(Guest.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     g = res.scalar_one_or_none()
     if g:
         await db.delete(g)
@@ -234,9 +279,14 @@ async def delete_guest(guest_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 async def list_reservations(
     upcoming: Optional[int] = None,
     status_filter: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
 ):
-    query = select(Reservation).order_by(Reservation.check_in.asc())
+    query = select(Reservation).join(Guest)
+    if lodge_id:
+        query = query.where(Guest.lodge_id == lodge_id)
+        
+    query = query.order_by(Reservation.check_in.asc())
     if upcoming:
         today = date.today()
         end_date = today + timedelta(days=upcoming)
@@ -247,7 +297,6 @@ async def list_reservations(
     res = await db.execute(query)
     reservations = res.scalars().all()
     
-    # Attach guest object manually or via relationship
     out = []
     for r in reservations:
         g_data = None
@@ -320,8 +369,17 @@ async def delete_reservation(res_id: uuid.UUID, db: AsyncSession = Depends(get_d
 # Staff Task Board CRUD
 # -----------------------------------------------------------------------------
 @router.get("/tasks", response_model=List[LodgeTaskOut])
-async def list_tasks(area: Optional[str] = None, complete: Optional[bool] = None, db: AsyncSession = Depends(get_db)):
-    query = select(LodgeTask).order_by(LodgeTask.due_date.asc())
+async def list_tasks(
+    area: Optional[str] = None,
+    complete: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    query = select(LodgeTask)
+    if lodge_id:
+        query = query.where(LodgeTask.lodge_id == lodge_id)
+        
+    query = query.order_by(LodgeTask.due_date.asc())
     if area and area != "all":
         query = query.where(LodgeTask.area == area)
     if complete is not None:
@@ -330,16 +388,30 @@ async def list_tasks(area: Optional[str] = None, complete: Optional[bool] = None
     return res.scalars().all()
 
 @router.post("/tasks", response_model=LodgeTaskOut, status_code=201)
-async def create_task(data: LodgeTaskCreate, db: AsyncSession = Depends(get_db)):
+async def create_task(
+    data: LodgeTaskCreate,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     t = LodgeTask(**data.model_dump())
+    if lodge_id:
+        t.lodge_id = lodge_id
     db.add(t)
     await db.commit()
     await db.refresh(t)
     return t
 
 @router.put("/tasks/{task_id}", response_model=LodgeTaskOut)
-async def update_task(task_id: uuid.UUID, data: LodgeTaskCreate, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(LodgeTask).where(LodgeTask.id == task_id))
+async def update_task(
+    task_id: uuid.UUID,
+    data: LodgeTaskCreate,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(LodgeTask).where(LodgeTask.id == task_id)
+    if lodge_id:
+        stmt = stmt.where(LodgeTask.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     t = res.scalar_one_or_none()
     if not t:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -365,7 +437,8 @@ async def update_task(task_id: uuid.UUID, data: LodgeTaskCreate, db: AsyncSessio
             due_date=next_date,
             recurrence=t.recurrence,
             is_complete=False,
-            notes=t.notes
+            notes=t.notes,
+            lodge_id=lodge_id
         )
         db.add(next_task)
     
@@ -374,8 +447,15 @@ async def update_task(task_id: uuid.UUID, data: LodgeTaskCreate, db: AsyncSessio
     return t
 
 @router.delete("/tasks/{task_id}", status_code=204)
-async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(LodgeTask).where(LodgeTask.id == task_id))
+async def delete_task(
+    task_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(LodgeTask).where(LodgeTask.id == task_id)
+    if lodge_id:
+        stmt = stmt.where(LodgeTask.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     t = res.scalar_one_or_none()
     if t:
         await db.delete(t)
@@ -387,8 +467,16 @@ async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 # Incidents CRUD
 # -----------------------------------------------------------------------------
 @router.get("/incidents", response_model=List[IncidentOut])
-async def list_incidents(resolved: Optional[bool] = None, db: AsyncSession = Depends(get_db)):
-    query = select(Incident).order_by(
+async def list_incidents(
+    resolved: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    query = select(Incident)
+    if lodge_id:
+        query = query.where(Incident.lodge_id == lodge_id)
+        
+    query = query.order_by(
         desc(Incident.severity == "critical"),
         desc(Incident.created_at)
     )
@@ -398,16 +486,29 @@ async def list_incidents(resolved: Optional[bool] = None, db: AsyncSession = Dep
     return res.scalars().all()
 
 @router.post("/incidents", response_model=IncidentOut, status_code=201)
-async def create_incident(data: IncidentCreate, db: AsyncSession = Depends(get_db)):
+async def create_incident(
+    data: IncidentCreate,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
     i = Incident(**data.model_dump())
+    if lodge_id:
+        i.lodge_id = lodge_id
     db.add(i)
     await db.commit()
     await db.refresh(i)
     return i
 
 @router.put("/incidents/{inc_id}/resolve", response_model=IncidentOut)
-async def resolve_incident(inc_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(Incident).where(Incident.id == inc_id))
+async def resolve_incident(
+    inc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(Incident).where(Incident.id == inc_id)
+    if lodge_id:
+        stmt = stmt.where(Incident.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     i = res.scalar_one_or_none()
     if not i:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -418,8 +519,15 @@ async def resolve_incident(inc_id: uuid.UUID, db: AsyncSession = Depends(get_db)
     return i
 
 @router.delete("/incidents/{inc_id}", status_code=204)
-async def delete_incident(inc_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(Incident).where(Incident.id == inc_id))
+async def delete_incident(
+    inc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(Incident).where(Incident.id == inc_id)
+    if lodge_id:
+        stmt = stmt.where(Incident.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     i = res.scalar_one_or_none()
     if i:
         await db.delete(i)
@@ -431,13 +539,27 @@ async def delete_incident(inc_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 # Daily Log CRUD
 # -----------------------------------------------------------------------------
 @router.get("/daily-log", response_model=List[DailyLogOut])
-async def list_daily_logs(limit: int = 30, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(DailyLog).order_by(desc(DailyLog.log_date)).limit(limit))
+async def list_daily_logs(
+    limit: int = 30,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    query = select(DailyLog)
+    if lodge_id:
+        query = query.where(DailyLog.lodge_id == lodge_id)
+    res = await db.execute(query.order_by(desc(DailyLog.log_date)).limit(limit))
     return res.scalars().all()
 
 @router.post("/daily-log", response_model=DailyLogOut, status_code=201)
-async def create_or_update_daily_log(data: DailyLogCreate, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(DailyLog).where(DailyLog.log_date == data.log_date))
+async def create_or_update_daily_log(
+    data: DailyLogCreate,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    stmt = select(DailyLog).where(DailyLog.log_date == data.log_date)
+    if lodge_id:
+        stmt = stmt.where(DailyLog.lodge_id == lodge_id)
+    res = await db.execute(stmt)
     existing = res.scalar_one_or_none()
     if existing:
         for k, v in data.model_dump().items():
@@ -447,6 +569,8 @@ async def create_or_update_daily_log(data: DailyLogCreate, db: AsyncSession = De
         return existing
     else:
         dl = DailyLog(**data.model_dump())
+        if lodge_id:
+            dl.lodge_id = lodge_id
         db.add(dl)
         await db.commit()
         await db.refresh(dl)

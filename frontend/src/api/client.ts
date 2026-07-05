@@ -15,6 +15,17 @@ api.interceptors.request.use((config) => {
       }
     }
   }
+
+  const activeLodgeId = localStorage.getItem('activeLodgeId')
+  if (activeLodgeId) {
+    config.headers['X-Lodge-Id'] = activeLodgeId
+    if (config.method?.toLowerCase() === 'post' && config.data instanceof FormData) {
+      if (!config.data.has('lodge_id')) {
+        config.data.append('lodge_id', activeLodgeId)
+      }
+    }
+  }
+
   return config
 })
 
