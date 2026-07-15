@@ -82,6 +82,12 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       setState(() => _loading = true);
       try {
         await ApiService.updateText(item.id, newSummary, transCtrl.text.trim());
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+          );
+        }
       } finally {
         _fetchShopping();
       }

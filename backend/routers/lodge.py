@@ -1197,6 +1197,72 @@ async def delete_agency(
     await db.commit()
     return None
 
+@router.get("/calendar/month-summary")
+async def get_calendar_month_summary(
+    month: str,
+    user_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    import calendar
+    from models import Recording, Reservation, Guest
+    from sqlalchemy import or_, and_, select
+    
+    try:
+        year, mth = map(int, month.split('-'))
+        start_date = date(year, mth, 1)
+        _, days_in_month = calendar.monthrange(year, mth)
+        end_date = date(year, mth, days_in_month)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid month format")
+
+    summary = {}
+    for d in range(1, days_in_month + 1):
+        d_str = date(year, mth, d).isoformat()
+        summary[d_str] = {"bookings": 0, "memos": 0, "shopping": 0, "future_reminders": 0}
+
+    # Fetch Bookings
+    res_stmt = select(Reservation).join(Guest).where(
+        Reservation.check_in <= end_date,
+        Reservation.check_out >= start_date,
+        Reservation.status != 'cancelled'
+    )
+    if lodge_id: res_stmt = res_stmt.where(Guest.lodge_id == lodge_id)
+    reservations = (await db.execute(res_stmt)).scalars().all()
+    
+    for r in reservations:
+        c_in = max(r.check_in, start_date)
+        c_out = min(r.check_out or end_date, end_date)
+        delta = (c_out - c_in).days
+        for i in range(delta + 1):
+            cur = c_in + timedelta(days=i)
+            d_str = cur.isoformat()
+            if d_str in summary:
+                summary[d_str]["bookings"] += 1
+
+    # Fetch Recordings
+    rec_stmt = select(Recording).where(
+        Recording.date_recorded >= start_date,
+        Recording.date_recorded <= end_date
+    )
+    if lodge_id: rec_stmt = rec_stmt.where(Recording.lodge_id == lodge_id)
+    if user_email: rec_stmt = rec_stmt.where(Recording.user_email == user_email)
+    
+    recordings = (await db.execute(rec_stmt)).scalars().all()
+    
+    for rec in recordings:
+        if not rec.date_recorded: continue
+        d_str = rec.date_recorded.isoformat()
+        if d_str in summary:
+            if rec.status == "done":
+                if rec.type == "memo": summary[d_str]["memos"] += 1
+                elif rec.type == "shopping": summary[d_str]["shopping"] += 1
+            else:
+                summary[d_str]["future_reminders"] += 1
+
+    return summary
+
+
 # Export Booking Sheet
 
 @router.get("/export-booking-sheet")

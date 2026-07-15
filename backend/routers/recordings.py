@@ -133,10 +133,7 @@ async def get_by_date(
     conditions = [
         Recording.type == "memo",
         Recording.status != "done",
-        or_(
-            Recording.date_recorded == target_date,
-            and_(Recording.status == "urgent", Recording.date_recorded < target_date)
-        )
+        Recording.date_recorded <= target_date
     ]
     if user_email:
         conditions.append(Recording.user_email == user_email)

@@ -4,7 +4,7 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { 
   getByDate, updateStatus, updateDate, deleteRecording, Recording,
-  getCalendarMonthSummary, getReservationsByDate, getShoppingHistory
+  getCalendarMonthSummary, getReservationsByDate, getShoppingHistory, getActiveShopping
 } from '../api/client'
 
 export default function Dashboard() {
@@ -19,6 +19,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [postponeModalRec, setPostponeModalRec] = useState<Recording | null>(null)
   const [postponeDate, setPostponeDate] = useState('')
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [historyMemos, setHistoryMemos] = useState<Recording[]>([])
+  const [historyShopping, setHistoryShopping] = useState<Recording[]>([])
+
+  const fetchHistoryData = async () => {
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd')
+      const [{ getDoneByDate, getShoppingHistory }] = await Promise.all([
+        import('../api/client')
+      ])
+      const mData = await getDoneByDate(dateStr)
+      const sData = await getShoppingHistory()
+      setHistoryMemos(mData)
+      setHistoryShopping(sData.filter((r: any) => r.date_recorded === dateStr))
+      setShowHistoryModal(true)
+    } catch(err) { console.error(err) }
+  }
 
   const fetchMonthSummary = async (date: Date) => {
     try {
@@ -41,10 +58,11 @@ export default function Dashboard() {
         const data = await getReservationsByDate(dateStr)
         setBookings(data)
       } else if (activeTab === 'shopping') {
-        // Fetch shopping history and filter by date.
-        // In a real app we'd have a specific endpoint, but for now we filter locally
-        const data = await getShoppingHistory()
-        setShopping(data.filter((r: any) => r.date_recorded === dateStr))
+        const data = await getActiveShopping()
+        setShopping(data.filter((r: any) => {
+          if (!r.date_recorded) return true;
+          return r.date_recorded <= dateStr;
+        }))
       }
     } catch (err) {
       console.error(err)
@@ -109,9 +127,10 @@ export default function Dashboard() {
     if (view === 'month') {
       const dateStr = format(date, 'yyyy-MM-dd')
       const summary = monthSummary[dateStr]
-      if (summary && summary.bookings > 0) {
-        return 'has-booking'
-      }
+      let classes = []
+      if (summary && summary.bookings > 0) classes.push('has-booking')
+      if (summary && summary.future_reminders > 0) classes.push('has-reminders')
+      return classes.length > 0 ? classes.join(' ') : null
     }
     return null
   }
@@ -124,6 +143,16 @@ export default function Dashboard() {
           color: #7F1D1D !important;
           font-weight: bold;
           border-radius: 8px;
+        }
+        .has-reminders {
+          background-color: #BFDBFE !important;
+          color: #1E3A8A !important;
+          font-weight: bold;
+          border-radius: 8px;
+        }
+        .has-booking.has-reminders {
+          background: linear-gradient(135deg, #FCA5A5 50%, #BFDBFE 50%) !important;
+          color: #000 !important;
         }
         .react-calendar {
           border: none;
@@ -171,6 +200,34 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#FFF', padding: 24, borderRadius: 12, width: 500, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 12px', color: '#1E3A8A' }}>📜 Historical Data - {format(selectedDate, 'MMM d, yyyy')}</h3>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+              <button onClick={() => setShowHistoryModal(false)} style={{ padding: '6px 12px', background: '#E2E8F0', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Close</button>
+            </div>
+            
+            <h4 style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 4 }}>Completed Memos</h4>
+            {historyMemos.length === 0 ? <p style={{color: '#94A3B8'}}>No completed memos.</p> : historyMemos.map(m => (
+              <div key={m.id} style={{ padding: 10, border: '1px solid #E2E8F0', borderRadius: 6, marginBottom: 8, background: '#F8FAFC' }}>
+                <strong style={{color: '#334155'}}>{m.summary}</strong>
+                <p style={{margin: '4px 0 0', fontSize: 13, color: '#64748B'}}>{m.transcript}</p>
+              </div>
+            ))}
+
+            <h4 style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 4, marginTop: 24 }}>Completed Shopping</h4>
+            {historyShopping.length === 0 ? <p style={{color: '#94A3B8'}}>No completed shopping lists.</p> : historyShopping.map(s => (
+              <div key={s.id} style={{ padding: 10, border: '1px solid #E2E8F0', borderRadius: 6, marginBottom: 8, background: '#F8FAFC' }}>
+                <strong style={{color: '#334155'}}>{s.summary}</strong>
+                <p style={{margin: '4px 0 0', fontSize: 13, color: '#64748B'}}>{s.transcript}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Left Sidebar: Calendar */}
       <div style={{ width: 350, flexShrink: 0 }}>
         <Calendar 
@@ -184,6 +241,10 @@ export default function Dashboard() {
           <p style={{ margin: '4px 0', color: '#475569' }}>Bookings: {monthSummary[format(selectedDate, 'yyyy-MM-dd')]?.bookings || 0}</p>
           <p style={{ margin: '4px 0', color: '#475569' }}>Memos Completed: {monthSummary[format(selectedDate, 'yyyy-MM-dd')]?.memos || 0}</p>
           <p style={{ margin: '4px 0', color: '#475569' }}>Shopping Completed: {monthSummary[format(selectedDate, 'yyyy-MM-dd')]?.shopping || 0}</p>
+          <p style={{ margin: '4px 0', color: '#475569' }}>Future Reminders: {monthSummary[format(selectedDate, 'yyyy-MM-dd')]?.future_reminders || 0}</p>
+          <button onClick={fetchHistoryData} style={{ marginTop: 16, width: '100%', padding: '8px 0', background: '#334155', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+            View Historical Data
+          </button>
         </div>
       </div>
 

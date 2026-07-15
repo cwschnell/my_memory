@@ -145,11 +145,16 @@ class ApiService {
 
   static Future<void> updateText(String id, String summary, String transcript) async {
     final uri = Uri.parse('$BASE_URL/recordings/$id/text');
-    await http.patch(
+    final headers = await _getHeaders();
+    headers['Content-Type'] = 'application/json';
+    final response = await http.patch(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({'summary': summary, 'transcript': transcript}),
     );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update text: ${response.body}');
+    }
   }
 
   static Future<Map<String, dynamic>> getCalendarMonthSummary(String month) async {

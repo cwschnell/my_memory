@@ -119,6 +119,12 @@ class _ListScreenState extends State<ListScreen> {
       setState(() => _loading = true);
       try {
         await ApiService.updateText(item.id, nameCtrl.text.trim(), transCtrl.text.trim());
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+          );
+        }
       } finally {
         _fetchRecordings();
       }

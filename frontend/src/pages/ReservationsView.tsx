@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useTranslation } from '../i18n/translations';
+import BookingSheetView from './BookingSheetView';
 
 interface Guest {
   id: string;
@@ -42,7 +43,7 @@ interface Reservation {
 
 export const ReservationsView: React.FC = () => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'reservations' | 'guests'>('reservations');
+  const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'sheet'>('reservations');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -449,10 +450,27 @@ export const ReservationsView: React.FC = () => {
         >
           👤 Guest Directory ({guests.length})
         </button>
+        <button
+          onClick={() => setActiveTab('sheet')}
+          style={{
+            padding: '0.7rem 1.5rem',
+            background: 'transparent',
+            color: activeTab === 'sheet' ? '#38bdf8' : '#94a3b8',
+            border: 'none',
+            borderBottom: activeTab === 'sheet' ? '3px solid #38bdf8' : 'none',
+            fontWeight: 700,
+            fontSize: '1rem',
+            cursor: 'pointer'
+          }}
+        >
+          📊 Booking Sheet
+        </button>
       </div>
 
       {loading ? (
         <p style={{ color: '#94a3b8', textAlign: 'center' }}>Loading records...</p>
+      ) : activeTab === 'sheet' ? (
+        <BookingSheetView />
       ) : activeTab === 'reservations' ? (
         /* Reservations Table */
         <div style={{ background: '#1e293b', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
