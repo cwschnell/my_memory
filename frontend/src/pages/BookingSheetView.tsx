@@ -16,6 +16,8 @@ export default function BookingSheetView() {
   const [editMode, setEditMode] = useState(false)
   const [activeAgencyName, setActiveAgencyName] = useState<string | null>(null)
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({})
+  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
 
   // Modals for add/edit
   const [roomName, setRoomName] = useState('')
@@ -163,7 +165,7 @@ export default function BookingSheetView() {
   }
 
   return (
-    <div style={{ background: '#FFF', padding: 24, borderRadius: 12, color: '#1E293B', overflowX: 'auto' }}>
+    <div style={isFullScreen ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, background: '#FFF', padding: 24, overflow: 'auto', color: '#1E293B' } : { background: '#FFF', padding: 24, borderRadius: 12, color: '#1E293B', overflowX: 'auto' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2>📅 Booking Sheet (Excel Layout)</h2>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -185,6 +187,18 @@ export default function BookingSheetView() {
             </button>
           )}
           <button 
+            onClick={() => setIsFullScreen(!isFullScreen)}
+            style={{ padding: '8px 16px', background: '#64748B', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            {isFullScreen ? '🗗 Restore' : '🗖 Maximize'}
+          </button>
+          <button 
+            onClick={() => setShowConfig(!showConfig)}
+            style={{ padding: '8px 16px', background: '#94A3B8', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            {showConfig ? 'Hide Config' : '⚙️ Setup'}
+          </button>
+          <button 
             onClick={() => {
               if (Object.keys(pendingChanges).length > 0) {
                 if (!window.confirm("You have unsaved changes. Discard them?")) return
@@ -192,6 +206,7 @@ export default function BookingSheetView() {
               setEditMode(!editMode)
               setActiveAgencyName(null)
               setPendingChanges({})
+              if (!editMode) setShowConfig(false) // auto hide config when entering edit mode
             }}
             style={{ 
               padding: '8px 16px', 
@@ -220,73 +235,87 @@ export default function BookingSheetView() {
         </div>
       </header>
 
-      {/* Settings Section */}
-      <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
-        <div style={{ flex: 1, border: '1px solid #E2E8F0', padding: 16, borderRadius: 8 }}>
-          <h3 style={{ margin: '0 0 10px' }}>Houses (Rooms)</h3>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            <input 
-              value={roomName} onChange={e => setRoomName(e.target.value)} 
-              placeholder="e.g. Casa Praie" style={{ flex: 1, padding: 6, border: '1px solid #CBD5E1', borderRadius: 4 }} 
-            />
-            <button onClick={handleAddRoom} style={{ padding: '6px 12px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
+      {/* Settings Section (Collapsible) */}
+      {showConfig && (
+        <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
+          <div style={{ flex: 1, border: '1px solid #E2E8F0', padding: 16, borderRadius: 8 }}>
+            <h3 style={{ margin: '0 0 10px' }}>Houses (Rooms)</h3>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <input 
+                value={roomName} onChange={e => setRoomName(e.target.value)} 
+                placeholder="e.g. Casa Praie" style={{ flex: 1, padding: 6, border: '1px solid #CBD5E1', borderRadius: 4 }} 
+              />
+              <button onClick={handleAddRoom} style={{ padding: '6px 12px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
+            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 14 }}>
+              {rooms.map(r => (
+                <li key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #F1F5F9' }}>
+                  {r.name} 
+                  <button onClick={() => handleDeleteRoom(r.id)} style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer' }}>✖</button>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 14 }}>
-            {rooms.map(r => (
-              <li key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #F1F5F9' }}>
-                {r.name} 
-                <button onClick={() => handleDeleteRoom(r.id)} style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer' }}>✖</button>
-              </li>
-            ))}
-          </ul>
-        </div>
 
-        <div style={{ flex: 1, border: '1px solid #E2E8F0', padding: 16, borderRadius: 8 }}>
-          <h3 style={{ margin: '0 0 10px' }}>Agencies (Legend)</h3>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            <input 
-              value={agencyName} onChange={e => setAgencyName(e.target.value)} 
-              placeholder="e.g. AirBnB" style={{ flex: 1, padding: 6, border: '1px solid #CBD5E1', borderRadius: 4 }} 
-            />
-            <input type="color" value={agencyColor} onChange={e => setAgencyColor(e.target.value)} style={{ padding: 0, height: 30, width: 30, border: 'none' }} />
-            <button onClick={handleAddAgency} style={{ padding: '6px 12px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
+          <div style={{ flex: 1, border: '1px solid #E2E8F0', padding: 16, borderRadius: 8 }}>
+            <h3 style={{ margin: '0 0 10px' }}>Agencies (Legend Setup)</h3>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <input 
+                value={agencyName} onChange={e => setAgencyName(e.target.value)} 
+                placeholder="e.g. AirBnB" style={{ flex: 1, padding: 6, border: '1px solid #CBD5E1', borderRadius: 4 }} 
+              />
+              <input type="color" value={agencyColor} onChange={e => setAgencyColor(e.target.value)} style={{ padding: 0, height: 30, width: 30, border: 'none' }} />
+              <button onClick={handleAddAgency} style={{ padding: '6px 12px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {agencies.map(a => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', padding: '4px 8px', borderRadius: 4, border: '1px solid #E2E8F0', fontSize: 13 }}>
+                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: a.color }}></div>
+                  {a.name}
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteAgency(a.id); }} style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 10 }}>✖</button>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Editing Palette (Always visible when in Edit Mode) */}
+      {editMode && (
+        <div style={{ marginBottom: 15, padding: '10px 15px', background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 15 }}>
+          <strong style={{ fontSize: 14 }}>Active Brush:</strong>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {editMode && (
-              <div 
-                onClick={() => setActiveAgencyName('ERASER')}
-                style={{ 
-                  display: 'flex', alignItems: 'center', gap: 6, 
-                  background: activeAgencyName === 'ERASER' ? '#FEF2F2' : '#F8FAFC', 
-                  padding: '4px 8px', borderRadius: 4, 
-                  border: `2px solid ${activeAgencyName === 'ERASER' ? '#EF4444' : '#E2E8F0'}`, 
-                  fontSize: 13, cursor: 'pointer' 
-                }}
-              >
-                🧹 Eraser
-              </div>
-            )}
+            <div 
+              onClick={() => setActiveAgencyName('ERASER')}
+              style={{ 
+                display: 'flex', alignItems: 'center', gap: 6, 
+                background: activeAgencyName === 'ERASER' ? '#FEF2F2' : '#FFF', 
+                padding: '6px 12px', borderRadius: 6, 
+                border: `2px solid ${activeAgencyName === 'ERASER' ? '#EF4444' : '#E2E8F0'}`, 
+                fontSize: 13, cursor: 'pointer', fontWeight: activeAgencyName === 'ERASER' ? 'bold' : 'normal'
+              }}
+            >
+              🧹 Eraser
+            </div>
             {agencies.map(a => (
               <div 
                 key={a.id} 
-                onClick={() => editMode && setActiveAgencyName(a.name)}
+                onClick={() => setActiveAgencyName(a.name)}
                 style={{ 
                   display: 'flex', alignItems: 'center', gap: 6, 
-                  background: activeAgencyName === a.name ? '#EFF6FF' : '#F8FAFC', 
-                  padding: '4px 8px', borderRadius: 4, 
+                  background: activeAgencyName === a.name ? '#EFF6FF' : '#FFF', 
+                  padding: '6px 12px', borderRadius: 6, 
                   border: `2px solid ${activeAgencyName === a.name ? '#3B82F6' : '#E2E8F0'}`, 
-                  fontSize: 13,
-                  cursor: editMode ? 'pointer' : 'default'
+                  fontSize: 13, cursor: 'pointer', fontWeight: activeAgencyName === a.name ? 'bold' : 'normal'
                 }}
               >
-                <div style={{ width: 12, height: 12, borderRadius: '50%', background: a.color }}></div>
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: a.color, border: '1px solid #000' }}></div>
                 {a.name}
-                <button onClick={(e) => { e.stopPropagation(); handleDeleteAgency(a.id); }} style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 10 }}>✖</button>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
 
       {loading && <p style={{ color: '#3B82F6', fontWeight: 'bold' }}>Loading / Saving...</p>}
       
