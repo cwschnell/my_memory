@@ -13,6 +13,8 @@ export default function BookingSheetView() {
   
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
   const [loading, setLoading] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [activeAgencyName, setActiveAgencyName] = useState<string | null>(null)
 
   // Modals for add/edit
   const [roomName, setRoomName] = useState('')
@@ -90,11 +92,81 @@ export default function BookingSheetView() {
   const daysInMonth = getDaysInMonth(new Date(`${selectedMonth}-01`))
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
+  const handleCellClick = async (roomName: string, currDate: string, existingMatch: any) => {
+    if (!editMode) return
+    
+    const { api } = await import('../api/client')
+    if (activeAgencyName === 'ERASER') {
+      if (existingMatch) {
+        setLoading(true)
+        try {
+          await api.delete(`/lodge/reservations/${existingMatch.id}`)
+          await fetchMonthReservations()
+        } catch (e) {
+          console.error(e)
+          setLoading(false)
+        }
+      }
+    } else if (activeAgencyName) {
+      setLoading(true)
+      try {
+        if (existingMatch) {
+          // Update existing reservation source
+          const payload = { ...existingMatch }
+          payload.source = activeAgencyName
+          payload.guest_id = payload.guest_id || null
+          // Omit guest if it's nested dict to avoid schema errors on backend
+          delete payload.guest
+          await api.put(`/lodge/reservations/${existingMatch.id}`, payload)
+        } else {
+          // Create new 1-day reservation
+          const nextDay = new Date(currDate)
+          nextDay.setDate(nextDay.getDate() + 1)
+          const checkoutDate = nextDay.toISOString().split('T')[0]
+          
+          await api.post('/lodge/reservations', {
+            room_or_unit: roomName,
+            check_in: currDate,
+            check_out: checkoutDate,
+            source: activeAgencyName,
+            status: 'confirmed',
+            num_adults: 1,
+            num_children: 0,
+            rate_per_night_usd: 0,
+            total_usd: 0,
+            deposit_paid: false
+          })
+        }
+        await fetchMonthReservations()
+      } catch (e) {
+        console.error(e)
+        setLoading(false)
+      }
+    }
+  }
+
   return (
     <div style={{ background: '#FFF', padding: 24, borderRadius: 12, color: '#1E293B', overflowX: 'auto' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2>📅 Booking Sheet (Excel Layout)</h2>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button 
+            onClick={() => {
+              setEditMode(!editMode)
+              setActiveAgencyName(null)
+            }}
+            style={{ 
+              padding: '8px 16px', 
+              background: editMode ? '#EF4444' : '#3B82F6', 
+              color: '#FFF', 
+              border: 'none', 
+              borderRadius: 6, 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            {editMode ? 'Exit Edit Mode' : '✏️ Edit Mode'}
+          </button>
           <input 
             type="month" 
             value={selectedMonth} 
@@ -142,11 +214,36 @@ export default function BookingSheetView() {
             <button onClick={handleAddAgency} style={{ padding: '6px 12px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {editMode && (
+              <div 
+                onClick={() => setActiveAgencyName('ERASER')}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 6, 
+                  background: activeAgencyName === 'ERASER' ? '#FEF2F2' : '#F8FAFC', 
+                  padding: '4px 8px', borderRadius: 4, 
+                  border: `2px solid ${activeAgencyName === 'ERASER' ? '#EF4444' : '#E2E8F0'}`, 
+                  fontSize: 13, cursor: 'pointer' 
+                }}
+              >
+                🧹 Eraser
+              </div>
+            )}
             {agencies.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', padding: '4px 8px', borderRadius: 4, border: '1px solid #E2E8F0', fontSize: 13 }}>
+              <div 
+                key={a.id} 
+                onClick={() => editMode && setActiveAgencyName(a.name)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 6, 
+                  background: activeAgencyName === a.name ? '#EFF6FF' : '#F8FAFC', 
+                  padding: '4px 8px', borderRadius: 4, 
+                  border: `2px solid ${activeAgencyName === a.name ? '#3B82F6' : '#E2E8F0'}`, 
+                  fontSize: 13,
+                  cursor: editMode ? 'pointer' : 'default'
+                }}
+              >
                 <div style={{ width: 12, height: 12, borderRadius: '50%', background: a.color }}></div>
                 {a.name}
-                <button onClick={() => handleDeleteAgency(a.id)} style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 10 }}>✖</button>
+                <button onClick={(e) => { e.stopPropagation(); handleDeleteAgency(a.id); }} style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 10 }}>✖</button>
               </div>
             ))}
           </div>
@@ -187,7 +284,17 @@ export default function BookingSheetView() {
                       else bgColor = '#CBD5E1' // default matched
                     }
                     return (
-                      <td key={day} style={{ border: '1px solid #CBD5E1', background: bgColor, height: 30, padding: 2 }}>
+                      <td 
+                        key={day} 
+                        onClick={() => handleCellClick(room.name, currDate, match)}
+                        style={{ 
+                          border: '1px solid #CBD5E1', 
+                          background: bgColor, 
+                          height: 30, 
+                          padding: 2,
+                          cursor: editMode && activeAgencyName ? 'pointer' : 'default'
+                        }}
+                      >
                         {match && (
                           <div style={{ fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 60, margin: '0 auto', color: '#000', fontWeight: 'bold' }} title={match.guest?.full_name}>
                             {match.guest?.full_name || 'Booked'}
