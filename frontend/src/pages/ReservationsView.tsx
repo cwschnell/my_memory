@@ -487,14 +487,14 @@ export const ReservationsView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {reservations.length === 0 ? (
+              {reservations.filter(r => r.guest_id).length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
                     No reservations found. Create one to begin tracking occupancy.
                   </td>
                 </tr>
               ) : (
-                reservations.map((r) => (
+                reservations.filter(r => r.guest_id).map((r) => (
                   <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '1rem', fontWeight: 600 }}>
                       {r.guest?.full_name || 'Walk-in / Direct'}

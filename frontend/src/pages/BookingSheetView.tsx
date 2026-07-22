@@ -24,6 +24,24 @@ export default function BookingSheetView() {
   const [agencyName, setAgencyName] = useState('')
   const [agencyColor, setAgencyColor] = useState('#000000')
 
+  const activeLodgeName = localStorage.getItem('activeLodgeName') || 'Default Lodge'
+  const chaletStorageKey = `chalets_${activeLodgeName}`
+  const defaultChalets = Array.from({ length: 10 }, (_, i) => `Chalet ${i + 1}`)
+
+  const [chaletList, setChaletList] = useState<string[]>(() => {
+    const saved = localStorage.getItem(chaletStorageKey)
+    return saved ? JSON.parse(saved) : defaultChalets
+  })
+
+  useEffect(() => {
+    const saved = localStorage.getItem(chaletStorageKey)
+    const list = saved ? JSON.parse(saved) : defaultChalets
+    setChaletList(list)
+    if (!roomName && list.length > 0) {
+      setRoomName(list[0])
+    }
+  }, [])
+
   const fetchMonthReservations = async () => {
     setLoading(true)
     try {
@@ -240,10 +258,15 @@ export default function BookingSheetView() {
           <div style={{ flex: 1, border: '1px solid #E2E8F0', padding: 16, borderRadius: 8 }}>
             <h3 style={{ margin: '0 0 10px' }}>Houses (Rooms)</h3>
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              <input 
+              <select 
                 value={roomName} onChange={e => setRoomName(e.target.value)} 
-                placeholder="e.g. Casa Praie" style={{ flex: 1, padding: 6, border: '1px solid #CBD5E1', borderRadius: 4 }} 
-              />
+                style={{ flex: 1, padding: 6, border: '1px solid #CBD5E1', borderRadius: 4 }} 
+              >
+                <option value="" disabled>Select House</option>
+                {chaletList.map((ch, idx) => (
+                  <option key={idx} value={ch}>{ch}</option>
+                ))}
+              </select>
               <button onClick={handleAddRoom} style={{ padding: '6px 12px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 14 }}>
