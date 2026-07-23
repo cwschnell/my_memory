@@ -147,10 +147,9 @@ export default function ShoppingView() {
                           {itemsInCat.map(({ item, itemName }) => (
                             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid #F8FAFC' }}>
                               <div>
-                                <div style={{ fontSize: 15, fontWeight: 600, color: '#1E293B' }}>{itemName}</div>
-                                {item.transcript && item.transcript !== itemName && (
-                                  <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>{item.transcript}</div>
-                                )}
+                                <a href={`/message/${item.id}`} style={{ fontSize: 16, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
+                                  {itemName}
+                                </a>
                               </div>
                               <div className="no-print" style={{ display: 'flex', gap: 8 }}>
                                 <button

@@ -369,8 +369,11 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {shopping.map(s => (
                     <div key={s.id} style={{ padding: 16, border: '1px solid #E2E8F0', borderRadius: 8 }}>
-                      <h4 style={{ margin: '0 0 4px', color: '#1E293B' }}>{s.summary}</h4>
-                      <p style={{ margin: 0, color: '#475569', fontSize: 14 }}>{s.transcript}</p>
+                      <h4 style={{ margin: '0 0 4px', color: '#1E293B' }}>
+                        <a href={`/message/${s.id}`} style={{ color: '#2563EB', textDecoration: 'none' }}>
+                          {s.summary}
+                        </a>
+                      </h4>
                     </div>
                   ))}
                 </div>
