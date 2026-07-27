@@ -173,3 +173,17 @@ class DailyLog(Base):
     notes           = Column(Text, nullable=True)
     weather         = Column(String(100), nullable=True)
     lodge_id        = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)
+
+
+class ShoppingItem(Base):
+    __tablename__ = "shopping_items"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    item_name    = Column(String(255), nullable=False)
+    status       = Column(String(20), nullable=False, default="active") # active, deleted, done
+    recording_id = Column(UUID(as_uuid=True), ForeignKey("recordings.id", ondelete="SET NULL"), nullable=True)
+    user_email   = Column(String(255), nullable=True, index=True)
+    lodge_id     = Column(UUID(as_uuid=True), ForeignKey("lodges.id", ondelete="SET NULL"), nullable=True)
+

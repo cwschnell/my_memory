@@ -92,11 +92,24 @@ export const getCalendarDoneCounts = () =>
 export const getDoneByDate = (dateStr: string) =>
   api.get(`/recordings/calendar/done-by-date/${dateStr}`).then(r => r.data)
 
+export interface ShoppingItem {
+  id: string
+  created_at: string
+  updated_at: string
+  item_name: string
+  status: string
+  recording_id?: string
+  user_email?: string
+}
+
 export const getActiveShopping = () =>
   api.get(`/recordings/shopping/active`).then(r => r.data)
 
 export const getShoppingHistory = () =>
   api.get(`/recordings/shopping/history`).then(r => r.data)
+
+export const deleteShoppingItem = (id: string) =>
+  api.delete(`/recordings/shopping/items/${id}`).then(r => r.data)
 
 export const updateRecordingText = (id: string, summary: string, transcript: string) =>
   api.patch(`/recordings/${id}/text`, { summary, transcript }).then(r => r.data)

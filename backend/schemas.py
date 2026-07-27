@@ -43,6 +43,18 @@ class TextUpdate(BaseModel):
 class TranscriptPayload(BaseModel):
     transcript: str
 
+class ShoppingItemOut(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    item_name: str
+    status: str
+    recording_id: Optional[uuid.UUID] = None
+    user_email: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
 
 # Lodge Schemas
 

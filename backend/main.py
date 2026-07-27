@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
                     await conn.execute(text("ALTER TABLE guests ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)"))
                     await conn.execute(text("CREATE TABLE IF NOT EXISTS rooms (id UUID PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), name VARCHAR(100) NOT NULL, lodge_id UUID NOT NULL REFERENCES lodges(id) ON DELETE CASCADE)"))
                     await conn.execute(text("CREATE TABLE IF NOT EXISTS agencies (id UUID PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), name VARCHAR(100) NOT NULL, color VARCHAR(20), lodge_id UUID NOT NULL REFERENCES lodges(id) ON DELETE CASCADE)"))
+                    await conn.execute(text("CREATE TABLE IF NOT EXISTS shopping_items (id UUID PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), item_name VARCHAR(255) NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'active', recording_id UUID REFERENCES recordings(id) ON DELETE SET NULL, user_email VARCHAR(255), lodge_id UUID REFERENCES lodges(id) ON DELETE SET NULL)"))
                     logger.info("Table migrations completed.")
                 except Exception as ex:
                     logger.warning(f"Column migration warning: {ex}")

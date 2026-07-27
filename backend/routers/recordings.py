@@ -8,10 +8,10 @@ from typing import Optional, List, Dict
 import aiofiles, os, uuid
 
 from database import get_db
-from models import Recording, Client
-from schemas import RecordingOut, StatusUpdate, DateUpdate, ClientUpdate, TextUpdate, TranscriptPayload
+from models import Recording, Client, ShoppingItem
+from schemas import RecordingOut, StatusUpdate, DateUpdate, ClientUpdate, TextUpdate, TranscriptPayload, ShoppingItemOut
 from services.transcription import transcribe_audio
-from services.summariser import summarise_to_three_words, categorize_shopping_item, clean_transcript
+from services.summariser import summarise_to_three_words, categorize_shopping_item, extract_shopping_items, clean_transcript
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
 UPLOAD_DIR = "/app/uploads"
@@ -50,11 +50,12 @@ async def upload_recording(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
-    # Summarise or Categorize
+    # Summarise or Extract Shopping Items
+    extracted_items = []
     try:
         if type == "shopping":
-            cat_res = await categorize_shopping_item(transcript)
-            summary = f"[{cat_res['category']}] {cat_res['item_name']}"
+            extracted_items = await extract_shopping_items(transcript)
+            summary = ", ".join(extracted_items) if extracted_items else transcript[:50]
         else:
             summary = await summarise_to_three_words(transcript)
     except Exception as e:
@@ -107,6 +108,38 @@ async def upload_recording(
     db.add(recording)
     await db.commit()
     
+    # Extract & Populate ShoppingItem table if rec_type is shopping
+    if rec_type == "shopping" and extracted_items:
+        for item_str in extracted_items:
+            clean_item_name = item_str.strip().title()
+            if not clean_item_name:
+                continue
+            
+            conds = [func.lower(ShoppingItem.item_name) == clean_item_name.lower()]
+            if user_email:
+                conds.append(ShoppingItem.user_email == user_email)
+            if target_lodge_id:
+                conds.append(ShoppingItem.lodge_id == target_lodge_id)
+
+            stmt_item = select(ShoppingItem).where(and_(*conds))
+            ex_res = await db.execute(stmt_item)
+            existing_item = ex_res.scalars().first()
+            if existing_item:
+                existing_item.status = "active"
+                existing_item.item_name = clean_item_name
+                existing_item.recording_id = recording.id
+                existing_item.created_at = func.now()
+            else:
+                new_item = ShoppingItem(
+                    item_name=clean_item_name,
+                    status="active",
+                    recording_id=recording.id,
+                    user_email=user_email,
+                    lodge_id=target_lodge_id
+                )
+                db.add(new_item)
+        await db.commit()
+
     # Reload with client relationship
     res = await db.execute(
         select(Recording).options(selectinload(Recording.client)).where(Recording.id == recording.id)
@@ -153,45 +186,73 @@ async def get_by_date(
     return result.scalars().all()
 
 
-@router.get("/shopping/active", response_model=List[RecordingOut])
-async def get_active_shopping(
+@router.get("/shopping/items", response_model=List[ShoppingItemOut])
+@router.get("/shopping/active", response_model=List[ShoppingItemOut])
+async def get_active_shopping_items(
     user_email: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
 ):
-    """Return active (not done) shopping list items grouped by client."""
-    conditions = [Recording.type == "shopping", Recording.status != "done"]
+    """Return active shopping items for flat list display."""
+    conditions = [ShoppingItem.status == "active"]
     if user_email:
-        conditions.append(Recording.user_email == user_email)
+        conditions.append(ShoppingItem.user_email == user_email)
     if lodge_id:
-        conditions.append(Recording.lodge_id == lodge_id)
+        conditions.append(ShoppingItem.lodge_id == lodge_id)
     stmt = (
-        select(Recording)
-        .options(selectinload(Recording.client))
+        select(ShoppingItem)
         .where(and_(*conditions))
-        .order_by(Recording.created_at.desc())
+        .order_by(ShoppingItem.created_at.desc())
     )
     result = await db.execute(stmt)
     return result.scalars().all()
 
 
-@router.get("/shopping/history", response_model=List[RecordingOut])
+@router.delete("/shopping/items/{item_id}")
+@router.patch("/shopping/items/{item_id}/status")
+async def delete_shopping_item(
+    item_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark a shopping item as deleted/done."""
+    try:
+        item_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    res = await db.execute(select(ShoppingItem).where(ShoppingItem.id == item_uuid))
+    item = res.scalar_one_or_none()
+    if not item:
+        # Fallback: check if it's a recording ID
+        rec_res = await db.execute(select(Recording).where(Recording.id == item_uuid))
+        rec = rec_res.scalar_one_or_none()
+        if rec:
+            rec.status = "done"
+            await db.commit()
+            return {"message": "Recording marked done"}
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+
+    item.status = "deleted"
+    await db.commit()
+    return {"message": "Item deleted"}
+
+
+@router.get("/shopping/history", response_model=List[ShoppingItemOut])
 async def get_shopping_history(
     user_email: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
 ):
-    """Return historical completed ('done') shopping list items."""
-    conditions = [Recording.type == "shopping", Recording.status == "done"]
+    """Return historical deleted/done shopping list items."""
+    conditions = [ShoppingItem.status != "active"]
     if user_email:
-        conditions.append(Recording.user_email == user_email)
+        conditions.append(ShoppingItem.user_email == user_email)
     if lodge_id:
-        conditions.append(Recording.lodge_id == lodge_id)
+        conditions.append(ShoppingItem.lodge_id == lodge_id)
     stmt = (
-        select(Recording)
-        .options(selectinload(Recording.client))
+        select(ShoppingItem)
         .where(and_(*conditions))
-        .order_by(Recording.created_at.desc())
+        .order_by(ShoppingItem.created_at.desc())
     )
     result = await db.execute(stmt)
     return result.scalars().all()

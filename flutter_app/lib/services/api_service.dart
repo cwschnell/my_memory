@@ -213,6 +213,11 @@ class ApiService {
     await http.delete(uri);
   }
 
+  static Future<void> deleteShoppingItem(String id) async {
+    final uri = Uri.parse('$BASE_URL/recordings/shopping/items/$id');
+    await http.delete(uri);
+  }
+
   static Future<Map<String, dynamic>> sendPin(String email) async {
     final uri = Uri.parse('$BASE_URL/auth/send-pin');
     final res = await http.post(
