@@ -157,6 +157,34 @@ class ApiService {
     }
   }
 
+  static Future<Recording> cleanTranscript(String id, String transcript) async {
+    final uri = Uri.parse('$BASE_URL/recordings/$id/clean-transcript');
+    final headers = await _getHeaders(json: true);
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({'transcript': transcript}),
+    );
+    if (response.statusCode == 200) {
+      return Recording.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to clean transcript');
+  }
+
+  static Future<Recording> resummarize(String id, String transcript) async {
+    final uri = Uri.parse('$BASE_URL/recordings/$id/resummarize');
+    final headers = await _getHeaders(json: true);
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({'transcript': transcript}),
+    );
+    if (response.statusCode == 200) {
+      return Recording.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to resummarize');
+  }
+
   static Future<Map<String, dynamic>> getCalendarMonthSummary(String month) async {
     final userEmail = await getAuthEmail();
     final query = userEmail != null && userEmail.isNotEmpty ? '&user_email=${Uri.encodeComponent(userEmail)}' : '';

@@ -98,21 +98,72 @@ class _ListScreenState extends State<ListScreen> {
     
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Memo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Summary')),
-            const SizedBox(height: 8),
-            TextField(controller: transCtrl, decoration: const InputDecoration(labelText: 'Transcript'), maxLines: 3),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
-        ],
-      )
+      builder: (ctx) {
+        bool isCleaning = false;
+        bool isSummarizing = false;
+
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Edit Memo'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Message Name')),
+                    const SizedBox(height: 8),
+                    TextField(controller: transCtrl, decoration: const InputDecoration(labelText: 'Transcript'), maxLines: 4),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: isCleaning ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_fix_high, size: 16),
+                            label: const Text('Clean', style: TextStyle(fontSize: 12)),
+                            onPressed: isCleaning ? null : () async {
+                              setStateDialog(() => isCleaning = true);
+                              try {
+                                final updated = await ApiService.cleanTranscript(item.id, transCtrl.text.trim());
+                                transCtrl.text = updated.transcript;
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                              } finally {
+                                setStateDialog(() => isCleaning = false);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: isSummarizing ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.short_text, size: 16),
+                            label: const Text('Name', style: TextStyle(fontSize: 12)),
+                            onPressed: isSummarizing ? null : () async {
+                              setStateDialog(() => isSummarizing = true);
+                              try {
+                                final updated = await ApiService.resummarize(item.id, transCtrl.text.trim());
+                                nameCtrl.text = updated.summary;
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                              } finally {
+                                setStateDialog(() => isSummarizing = false);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+              ],
+            );
+          }
+        );
+      }
     );
     
     if (result == true) {

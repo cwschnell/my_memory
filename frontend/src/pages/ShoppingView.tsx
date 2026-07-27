@@ -5,6 +5,7 @@ export default function ShoppingView() {
   const [activeItems, setActiveItems] = useState<Recording[]>([])
   const [historyItems, setHistoryItems] = useState<Recording[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [showAllShopping, setShowAllShopping] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const fetchData = async () => {
@@ -35,6 +36,25 @@ export default function ShoppingView() {
     if (!window.confirm("Delete this shopping item?")) return
     try {
       await deleteRecording(id)
+      fetchData()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDoneMultiple = async (ids: string[]) => {
+    try {
+      await Promise.all(ids.map(id => updateStatus(id, 'done')))
+      fetchData()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDeleteMultiple = async (ids: string[]) => {
+    if (!window.confirm("Delete these shopping items?")) return
+    try {
+      await Promise.all(ids.map(id => deleteRecording(id)))
       fetchData()
     } catch (err) {
       console.error(err)
@@ -83,11 +103,27 @@ export default function ShoppingView() {
     return a.localeCompare(b, undefined, { sensitivity: 'base' })
   })
 
+  // Flat Items for "All Shopping" view
+  const flatItemsMap = activeItems.reduce((acc, item) => {
+    const { itemName } = parseItem(item)
+    const key = itemName.toLowerCase()
+    if (!acc[key]) acc[key] = []
+    acc[key].push(item)
+    return acc
+  }, {} as Record<string, Recording[]>)
+  const flatItemKeys = Object.keys(flatItemsMap).sort((a, b) => a.localeCompare(b))
+
   return (
     <div style={{ padding: 24 }}>
       <header className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #E2E8F0' }}>
         <h2 style={{ margin: 0, color: '#1E293B' }}>🛒 My Shopping Lists</h2>
         <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => setShowAllShopping(!showAllShopping)}
+            style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', cursor: 'pointer', fontWeight: 600 }}
+          >
+            {showAllShopping ? 'Grouped View' : 'All Shopping'}
+          </button>
           <button
             onClick={() => setShowHistory(!showHistory)}
             style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', cursor: 'pointer', fontWeight: 600 }}
@@ -113,10 +149,47 @@ export default function ShoppingView() {
         <div>Loading shopping items...</div>
       ) : (
         <div>
-          {sortedActiveKeys.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>No active shopping items.</div>
+          {showAllShopping ? (
+            flatItemKeys.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>No active shopping items.</div>
+            ) : (
+              <div style={{ background: '#FFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 16 }}>
+                {flatItemKeys.map(key => {
+                  const items = flatItemsMap[key]
+                  const { itemName } = parseItem(items[0])
+                  const ids = items.map(i => i.id)
+                  return (
+                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid #F8FAFC' }}>
+                      <div>
+                        <a href={`/message/${items[0].id}`} style={{ fontSize: 16, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
+                          {itemName}
+                        </a>
+                        {items.length > 1 && <span style={{ fontSize: 12, color: '#64748B', marginLeft: 8 }}>({items.length} instances)</span>}
+                      </div>
+                      <div className="no-print" style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => handleDoneMultiple(ids)}
+                          style={{ background: '#16A34A', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          Mark Done
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMultiple(ids)}
+                          style={{ background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
           ) : (
-            sortedActiveKeys.map(clientName => {
+            sortedActiveKeys.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>No active shopping items.</div>
+            ) : (
+              sortedActiveKeys.map(clientName => {
               const storeItems = groupedActive[clientName]
               // Group items in this store by category
               const byCat: Record<string, Array<{ item: Recording; itemName: string }>> = {}
@@ -174,6 +247,7 @@ export default function ShoppingView() {
                 </div>
               )
             })
+            )
           )}
 
           {showHistory && (

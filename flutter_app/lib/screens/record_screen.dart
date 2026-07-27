@@ -32,11 +32,7 @@ class _RecordScreenState extends State<RecordScreen> {
       setState(() { _isRecording = false; });
 
       if (path != null) {
-        if (_selectedType == 'shopping') {
-          await _promptClientAndUpload(File(path));
-        } else {
-          await _uploadFile(File(path), type: 'memo');
-        }
+        await _uploadFile(File(path), type: _selectedType);
       }
     } else {
       final dir = await getTemporaryDirectory();
@@ -51,111 +47,6 @@ class _RecordScreenState extends State<RecordScreen> {
         _statusMessage = 'Recording (${_selectedType == 'memo' ? 'My Memo' : 'My Shopping'})... Tap to stop'; 
       });
     }
-  }
-
-  Future<void> _promptClientAndUpload(File audioFile) async {
-    List<ClientModel> clients = [];
-    try {
-      clients = await ApiService.getClients();
-    } catch (_) {}
-
-    bool isAddNew = clients.isEmpty;
-    String? selectedClientId = clients.isNotEmpty ? clients.first.id : null;
-    String newClientName = '';
-
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-
-            return AlertDialog(
-              title: const Text('🛒 Associate Category / Store Name'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Select an existing store/category name or create a new one:'),
-                    const SizedBox(height: 16),
-                    if (!isAddNew && clients.isNotEmpty) ...[
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'Select Name', border: OutlineInputBorder()),
-                        value: selectedClientId,
-                        items: clients.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
-                        onChanged: (val) => setModalState(() => selectedClientId = val),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => setModalState(() => isAddNew = true),
-                        child: const Text('+ Add New Category / Store Name'),
-                      )
-                    ] else ...[
-                      TextField(
-                        decoration: const InputDecoration(
-                          labelText: 'New Category / Store Name',
-                          hintText: 'e.g. Pick n Pay, Woolworths, Hardware',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (val) => newClientName = val,
-                      ),
-                      if (clients.isNotEmpty)
-                        TextButton(
-                          onPressed: () => setModalState(() => isAddNew = false),
-                          child: const Text('← Choose Existing Name'),
-                        )
-                    ]
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context, {'save': false});
-                  },
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context, {'save': true, 'clientId': null, 'clientName': null});
-                  },
-                  child: const Text('No Name'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
-                  onPressed: () {
-                    final String? cName = isAddNew && newClientName.trim().isNotEmpty ? newClientName.trim() : null;
-                    final String? cId = !isAddNew ? selectedClientId : null;
-                    Navigator.pop(context, {'save': true, 'clientId': cId, 'clientName': cName});
-                  },
-                  child: const Text('Save Shopping Item'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (result == null || result['save'] != true) {
-      setState(() {
-        _statusMessage = 'Recording cancelled';
-      });
-      try {
-        if (await audioFile.exists()) {
-          await audioFile.delete();
-        }
-      } catch (_) {}
-      return;
-    }
-
-    await _uploadFile(
-      audioFile,
-      type: 'shopping',
-      clientId: result['clientId'],
-      clientName: result['clientName'],
-    );
   }
 
   Future<void> _uploadFile(File file, {required String type, String? clientId, String? clientName}) async {
