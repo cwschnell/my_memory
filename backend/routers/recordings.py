@@ -308,6 +308,36 @@ async def get_done_by_date(
     return result.scalars().all()
 
 
+@router.get("/postponed", response_model=List[RecordingOut])
+async def get_postponed_memos(
+    user_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    """
+    Return all postponed memo recordings with date_recorded >= today (today and future dates).
+    """
+    today = date.today()
+    conditions = [
+        Recording.type == "memo",
+        Recording.status == "postpone",
+        Recording.date_recorded >= today
+    ]
+    if user_email:
+        conditions.append(Recording.user_email == user_email)
+    if lodge_id:
+        conditions.append(Recording.lodge_id == lodge_id)
+
+    stmt = (
+        select(Recording)
+        .options(selectinload(Recording.client))
+        .where(and_(*conditions))
+        .order_by(Recording.date_recorded.asc(), Recording.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
 @router.get("/{recording_id}", response_model=RecordingOut)
 async def get_recording(recording_id: str, db: AsyncSession = Depends(get_db)):
     """Fetch a single recording by ID."""

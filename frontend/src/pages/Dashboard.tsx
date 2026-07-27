@@ -4,7 +4,8 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { 
   getByDate, updateStatus, updateDate, deleteRecording, Recording,
-  getCalendarMonthSummary, getReservationsByDate, getShoppingHistory, getActiveShopping
+  getCalendarMonthSummary, getReservationsByDate, getShoppingHistory, getActiveShopping,
+  getPostponedMemos
 } from '../api/client'
 
 export default function Dashboard() {
@@ -22,6 +23,18 @@ export default function Dashboard() {
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyMemos, setHistoryMemos] = useState<Recording[]>([])
   const [historyShopping, setHistoryShopping] = useState<Recording[]>([])
+  const [showPostponedModal, setShowPostponedModal] = useState(false)
+  const [postponedMemos, setPostponedMemos] = useState<Recording[]>([])
+
+  const fetchPostponedData = async () => {
+    try {
+      const data = await getPostponedMemos()
+      setPostponedMemos(data)
+      setShowPostponedModal(true)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const fetchHistoryData = async () => {
     try {
@@ -245,8 +258,50 @@ export default function Dashboard() {
           <button onClick={fetchHistoryData} style={{ marginTop: 16, width: '100%', padding: '8px 0', background: '#334155', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
             View Historical Data
           </button>
+          <button onClick={fetchPostponedData} style={{ marginTop: 8, width: '100%', padding: '8px 0', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+            ⏰ Postponed Memos
+          </button>
         </div>
       </div>
+
+      {/* Postponed Memos Modal */}
+      {showPostponedModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#FFF', padding: 24, borderRadius: 12, width: 550, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #E2E8F0', paddingBottom: 12 }}>
+              <h3 style={{ margin: 0, color: '#1E3A8A' }}>⏰ Postponed Memos (Today & Future)</h3>
+              <button onClick={() => setShowPostponedModal(false)} style={{ padding: '6px 12px', background: '#E2E8F0', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Close</button>
+            </div>
+            
+            {postponedMemos.length === 0 ? (
+              <p style={{ color: '#94A3B8', textAlign: 'center', padding: 24 }}>No postponed memos scheduled for today or future dates.</p>
+            ) : (
+              postponedMemos.map(m => (
+                <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, border: '1px solid #E2E8F0', borderRadius: 8, marginBottom: 10, background: '#F8FAFC' }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#2563EB', marginBottom: 2 }}>
+                      Postponed to: {m.date_recorded ? format(new Date(m.date_recorded + 'T00:00:00'), 'MMM d, yyyy') : 'No Date'}
+                    </div>
+                    <a href={`/message/${m.id}`} style={{ fontWeight: 600, color: '#1E293B', textDecoration: 'none', fontSize: 15 }}>
+                      {m.summary}
+                    </a>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm("Remove this postponed memo?")) return
+                      await handleDelete(m.id)
+                      setPostponedMemos(prev => prev.filter(item => item.id !== m.id))
+                    }}
+                    style={{ background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Right Content Area */}
       <div style={{ flexGrow: 1, background: '#FFF', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

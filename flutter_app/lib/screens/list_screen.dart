@@ -320,6 +320,88 @@ class _ListScreenState extends State<ListScreen> {
     }
   }
 
+  Future<void> _showPostponedModal() async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateModal) {
+            return FutureBuilder<List<Recording>>(
+              future: ApiService.getPostponedMemos(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 250,
+                    child: Center(child: CircularProgressIndicator(color: Color(0xFF2563EB))),
+                  );
+                }
+                final list = snapshot.data ?? [];
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '⏰ Postponed Memos (Future)',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          )
+                        ],
+                      ),
+                      const Divider(),
+                      if (list.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(child: Text('No postponed memos for today or future dates.', style: TextStyle(color: Colors.grey))),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: list.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (context, idx) {
+                              final item = list[idx];
+                              final dateStr = item.dateRecorded != null ? DateFormat('dd MMM yyyy').format(item.dateRecorded!) : 'No Date';
+                              return ListTile(
+                                title: Text(item.summary, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text('Postponed to: $dateStr', style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.w600, fontSize: 12)),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  onPressed: () async {
+                                    await ApiService.deleteRecording(item.id);
+                                    setStateModal(() {});
+                                    _fetchRecordings();
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -328,6 +410,11 @@ class _ListScreenState extends State<ListScreen> {
         elevation: 0,
         title: const Text('📋 My Memos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.access_time, color: Colors.white, size: 18),
+            label: const Text('Postponed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            onPressed: _showPostponedModal,
+          ),
           IconButton(
             icon: const Icon(Icons.calendar_today, color: Colors.white),
             onPressed: _pickDate,

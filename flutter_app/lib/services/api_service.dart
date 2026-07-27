@@ -89,6 +89,19 @@ class ApiService {
     throw Exception('Failed to load active shopping list');
   }
 
+  static Future<List<Recording>> getPostponedMemos() async {
+    final userEmail = await getAuthEmail();
+    final query = userEmail != null && userEmail.isNotEmpty ? '?user_email=${Uri.encodeComponent(userEmail)}' : '';
+    final uri = Uri.parse('$BASE_URL/recordings/postponed$query');
+    final headers = await _getHeaders();
+    final response = await http.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      return data.map((j) => Recording.fromJson(j)).toList();
+    }
+    throw Exception('Failed to load postponed memos');
+  }
+
   static Future<Map<String, int>> getCalendarDoneCounts() async {
     final userEmail = await getAuthEmail();
     final query = userEmail != null && userEmail.isNotEmpty ? '?user_email=${Uri.encodeComponent(userEmail)}' : '';

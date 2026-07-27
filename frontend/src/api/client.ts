@@ -92,6 +92,9 @@ export const getCalendarDoneCounts = () =>
 export const getDoneByDate = (dateStr: string) =>
   api.get(`/recordings/calendar/done-by-date/${dateStr}`).then(r => r.data)
 
+export const getPostponedMemos = () =>
+  api.get(`/recordings/postponed`).then(r => r.data)
+
 export interface ShoppingItem {
   id: string
   created_at: string
