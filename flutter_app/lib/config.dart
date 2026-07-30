@@ -3,5 +3,5 @@
 // Example: http://192.168.1.105:8000
 // Both the phone and computer must be connected to the same WiFi network.
 
-const String BASE_URL = 'https://mymemos-production-d0e1.up.railway.app';
+const String BASE_URL = 'http://192.168.0.206:8000';
 
