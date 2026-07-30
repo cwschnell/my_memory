@@ -9,7 +9,7 @@ import aiofiles, os, uuid
 
 from database import get_db
 from models import Recording, Client, ShoppingItem
-from schemas import RecordingOut, StatusUpdate, DateUpdate, ClientUpdate, TextUpdate, TranscriptPayload, ShoppingItemOut
+from schemas import RecordingOut, StatusUpdate, DateUpdate, ClientUpdate, TextUpdate, TranscriptPayload, ShoppingItemOut, ShoppingItemUpdate
 from services.transcription import transcribe_audio
 from services.summariser import summarise_to_three_words, categorize_shopping_item, extract_shopping_items, clean_transcript
 
@@ -235,6 +235,73 @@ async def delete_shopping_item(
     item.status = "deleted"
     await db.commit()
     return {"message": "Item deleted"}
+
+
+@router.put("/shopping/items/{item_id}", response_model=ShoppingItemOut)
+async def update_shopping_item_name(
+    item_id: str,
+    update: ShoppingItemUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        item_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+    res = await db.execute(select(ShoppingItem).where(ShoppingItem.id == item_uuid))
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+    item.item_name = update.item_name
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.post("/shopping/items/{item_id}/clean", response_model=ShoppingItemOut)
+async def clean_shopping_item(
+    item_id: str,
+    payload: TranscriptPayload,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        item_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+    res = await db.execute(select(ShoppingItem).where(ShoppingItem.id == item_uuid))
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+    cleaned = await clean_transcript(payload.transcript)
+    item.item_name = cleaned
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.post("/shopping/items/{item_id}/resummarize", response_model=ShoppingItemOut)
+async def resummarize_shopping_item(
+    item_id: str,
+    payload: TranscriptPayload,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        item_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+    res = await db.execute(select(ShoppingItem).where(ShoppingItem.id == item_uuid))
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+    try:
+        cat_res = await categorize_shopping_item(payload.transcript)
+        new_name = cat_res.get('item_name', payload.transcript)
+    except Exception:
+        new_name = payload.transcript
+    item.item_name = new_name
+    await db.commit()
+    await db.refresh(item)
+    return item
+
 
 
 @router.get("/shopping/history", response_model=List[ShoppingItemOut])

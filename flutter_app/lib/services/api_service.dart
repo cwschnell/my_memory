@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../models/recording.dart';
+import '../models/shopping_item.dart';
 
 class ApiService {
   static Future<String?> getAuthEmail() async {
@@ -76,7 +77,7 @@ class ApiService {
     throw Exception('Failed to load recordings');
   }
 
-  static Future<List<Recording>> getActiveShopping() async {
+  static Future<List<ShoppingItemModel>> getActiveShopping() async {
     final userEmail = await getAuthEmail();
     final query = userEmail != null && userEmail.isNotEmpty ? '?user_email=${Uri.encodeComponent(userEmail)}' : '';
     final uri = Uri.parse('$BASE_URL/recordings/shopping/active$query');
@@ -84,7 +85,7 @@ class ApiService {
     final response = await http.get(uri, headers: headers);
     if (response.statusCode == 200) {
       final List data = jsonDecode(response.body);
-      return data.map((j) => Recording.fromJson(j)).toList();
+      return data.map((j) => ShoppingItemModel.fromJson(j)).toList();
     }
     throw Exception('Failed to load active shopping list');
   }
@@ -227,8 +228,50 @@ class ApiService {
   }
 
   static Future<void> deleteShoppingItem(String id) async {
+    final headers = await _getHeaders();
     final uri = Uri.parse('$BASE_URL/recordings/shopping/items/$id');
-    await http.delete(uri);
+    final response = await http.delete(uri, headers: headers);
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to delete item');
+    }
+  }
+
+  static Future<void> updateShoppingItemName(String id, String itemName) async {
+    final headers = await _getHeaders(json: true);
+    final response = await http.put(
+      Uri.parse('$BASE_URL/recordings/shopping/items/$id'),
+      headers: headers,
+      body: jsonEncode({'item_name': itemName}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update item');
+    }
+  }
+
+  static Future<String> cleanShoppingItem(String id, String text) async {
+    final headers = await _getHeaders(json: true);
+    final response = await http.post(
+      Uri.parse('$BASE_URL/recordings/shopping/items/$id/clean'),
+      headers: headers,
+      body: jsonEncode({'transcript': text}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['item_name'];
+    }
+    throw Exception('Failed to clean item text');
+  }
+
+  static Future<String> resummarizeShoppingItem(String id, String text) async {
+    final headers = await _getHeaders(json: true);
+    final response = await http.post(
+      Uri.parse('$BASE_URL/recordings/shopping/items/$id/resummarize'),
+      headers: headers,
+      body: jsonEncode({'transcript': text}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['item_name'];
+    }
+    throw Exception('Failed to update name');
   }
 
   static Future<Map<String, dynamic>> sendPin(String email) async {

@@ -55,6 +55,10 @@ class ShoppingItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ShoppingItemUpdate(BaseModel):
+    item_name: str
+
+
 
 # Lodge Schemas
 

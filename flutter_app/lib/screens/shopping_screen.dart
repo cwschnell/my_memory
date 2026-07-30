@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/recording.dart';
+import '../models/shopping_item.dart';
 import '../services/api_service.dart';
 
 class ShoppingScreen extends StatefulWidget {
@@ -9,7 +9,7 @@ class ShoppingScreen extends StatefulWidget {
 }
 
 class _ShoppingScreenState extends State<ShoppingScreen> {
-  List<Recording> _items = [];
+  List<ShoppingItemModel> _items = [];
   bool _loading = false;
   String _authEmail = '';
 
@@ -46,6 +46,94 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to delete: $e'), backgroundColor: Colors.red),
         );
+      }
+    }
+  }
+
+  Future<void> _showEditDialog(ShoppingItemModel item) async {
+    final nameCtrl = TextEditingController(text: item.itemName);
+    final contextCtrl = TextEditingController(text: item.itemName);
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        bool isCleaning = false;
+        bool isSummarizing = false;
+
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Edit Shopping Item'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Item Name')),
+                    const SizedBox(height: 8),
+                    TextField(controller: contextCtrl, decoration: const InputDecoration(labelText: 'Context (for LLM)'), maxLines: 2),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: isCleaning ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_fix_high, size: 16),
+                            label: const Text('Clean', style: TextStyle(fontSize: 12)),
+                            onPressed: isCleaning ? null : () async {
+                              setStateDialog(() => isCleaning = true);
+                              try {
+                                final updatedName = await ApiService.cleanShoppingItem(item.id, contextCtrl.text.trim());
+                                contextCtrl.text = updatedName;
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                              } finally {
+                                setStateDialog(() => isCleaning = false);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: isSummarizing ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.short_text, size: 16),
+                            label: const Text('Name', style: TextStyle(fontSize: 12)),
+                            onPressed: isSummarizing ? null : () async {
+                              setStateDialog(() => isSummarizing = true);
+                              try {
+                                final updatedName = await ApiService.resummarizeShoppingItem(item.id, contextCtrl.text.trim());
+                                nameCtrl.text = updatedName;
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                              } finally {
+                                setStateDialog(() => isSummarizing = false);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+              ],
+            );
+          }
+        );
+      }
+    );
+    
+    if (result == true) {
+      setState(() => _loading = true);
+      try {
+        await ApiService.updateShoppingItemName(item.id, nameCtrl.text.trim());
+        _fetchShopping();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+        }
+        setState(() => _loading = false);
       }
     }
   }
@@ -89,8 +177,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                         itemBuilder: (context, index) {
                           final item = _items[index];
                           
-                          // Support both ShoppingItem (item_name) and Recording (summary) formats
-                          String displayName = item.summary;
+                          String displayName = item.itemName;
                           if (displayName.startsWith('[') && displayName.contains(']')) {
                             final endIdx = displayName.indexOf(']');
                             displayName = displayName.substring(endIdx + 1).trim();
@@ -101,15 +188,18 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                               color: index % 2 == 0 ? Colors.white : const Color(0xFFFAFAFA),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                              title: Text(
-                                displayName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _deleteItem(item.id),
+                            child: InkWell(
+                              onTap: () => _showEditDialog(item),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                title: Text(
+                                  displayName,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  onPressed: () => _deleteItem(item.id),
+                                ),
                               ),
                             ),
                           );
