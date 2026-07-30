@@ -74,10 +74,42 @@ class _RecordScreenState extends State<RecordScreen> {
     }
   }
 
+  final TextEditingController _textCtrl = TextEditingController();
+  bool _isTextMode = false;
+
   @override
   void dispose() {
     _recorder.dispose();
+    _textCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitText() async {
+    final text = _textCtrl.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _isUploading = true;
+      _statusMessage = 'Processing text with LLM...';
+    });
+    try {
+      final rec = await ApiService.submitTextRecording(
+        text: text,
+        type: _selectedType,
+      );
+      setState(() {
+        _isUploading = false;
+        _lastSummary = rec.summary;
+        _statusMessage = 'Saved! Message Name: "${rec.summary}"';
+        _textCtrl.clear();
+        _isTextMode = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+        _statusMessage = 'Error: ${e.toString()}';
+      });
+    }
   }
 
   @override
@@ -142,9 +174,68 @@ class _RecordScreenState extends State<RecordScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
-              GestureDetector(
-                onTap: _isUploading ? null : _toggleRecord,
+              const SizedBox(height: 20),
+              
+              // Input Mode Toggle (Audio / Text)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ChoiceChip(
+                    label: const Text('🎙️ Audio', style: TextStyle(fontWeight: FontWeight.bold)),
+                    selected: !_isTextMode,
+                    onSelected: (val) {
+                      if (val) setState(() => _isTextMode = false);
+                    },
+                    selectedColor: const Color(0xFFDBEAFE),
+                    backgroundColor: Colors.white,
+                  ),
+                  const SizedBox(width: 10),
+                  ChoiceChip(
+                    label: const Text('✍️ Text', style: TextStyle(fontWeight: FontWeight.bold)),
+                    selected: _isTextMode,
+                    onSelected: (val) {
+                      if (val) setState(() => _isTextMode = true);
+                    },
+                    selectedColor: const Color(0xFFDBEAFE),
+                    backgroundColor: Colors.white,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+
+              if (_isTextMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _textCtrl,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          hintText: 'Type your ${_selectedType == 'memo' ? 'memo' : 'shopping items'} here...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _isUploading ? null : _submitText,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E3A8A),
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                        child: const Text('Submit Text', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                GestureDetector(
+                  onTap: _isUploading ? null : _toggleRecord,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   width: 160,
@@ -179,14 +270,24 @@ class _RecordScreenState extends State<RecordScreen> {
               if (_isUploading)
                 const CircularProgressIndicator(color: Color(0xFF2563EB)),
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  _statusMessage ?? 'Tap microphone to record a ${_selectedType == 'memo' ? 'memo' : 'shopping note'}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: Color(0xFF475569), fontWeight: FontWeight.w500),
+              if (!_isTextMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    _statusMessage ?? 'Tap microphone to record a ${_selectedType == 'memo' ? 'memo' : 'shopping note'}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16, color: Color(0xFF475569), fontWeight: FontWeight.w500),
+                  ),
+                )
+              else if (_statusMessage != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    _statusMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16, color: Color(0xFF475569), fontWeight: FontWeight.w500),
+                  ),
                 ),
-              ),
               if (_lastSummary != null) ...[
                 const SizedBox(height: 28),
                 Container(

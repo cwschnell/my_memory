@@ -50,3 +50,6 @@ docs/guide/
 docs/passports/
 plans/
 secrets/
+
+flutter_app/build_locked_*/
+flutter_app/.dart_tool_locked_*/

@@ -63,6 +63,53 @@ class ApiService {
     throw Exception('Upload failed ($response.statusCode): $body');
   }
 
+  static Future<Recording> submitTextRecording({
+    required String text,
+    required String type,
+    String? clientId,
+    String? clientName,
+  }) async {
+    final uri = Uri.parse('$BASE_URL/recordings/text');
+    final headers = await _getHeaders(json: true);
+    
+    final payload = {
+      'text': text,
+      'type': type,
+    };
+    
+    if (clientId != null && clientId.isNotEmpty) {
+      payload['client_id'] = clientId;
+    }
+    if (clientName != null && clientName.isNotEmpty) {
+      payload['client_name'] = clientName;
+    }
+
+    final userEmail = await getAuthEmail();
+    if (userEmail != null && userEmail.isNotEmpty) {
+      payload['user_email'] = userEmail;
+    }
+
+    // `lodge_id` is automatically injected via headers if using the X-Lodge-Id pattern,
+    // but our backend schema TextRecordingCreate expects it in body if we want it to be explicit.
+    // The backend `get_active_lodge_id` dependency pulls it from headers anyway, but we can also set it:
+    final prefs = await SharedPreferences.getInstance();
+    final lodgeId = prefs.getString('active_lodge_id') ?? '';
+    if (lodgeId.isNotEmpty) {
+      payload['lodge_id'] = lodgeId;
+    }
+
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      return Recording.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Submit failed (${response.statusCode}): ${response.body}');
+  }
+
   static Future<List<Recording>> getByDate(DateTime date) async {
     final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final userEmail = await getAuthEmail();

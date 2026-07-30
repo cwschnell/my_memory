@@ -77,6 +77,9 @@ export const getByDate = (dateStr: string) =>
 export const getRecording = (id: string) =>
   api.get(`/recordings/${id}`).then(r => r.data)
 
+export const submitTextRecording = (text: string, type: string, client_id?: string, client_name?: string) =>
+  api.post(`/recordings/text`, { text, type, client_id, client_name }).then(r => r.data)
+
 export const updateStatus = (id: string, status: string) =>
   api.patch(`/recordings/${id}/status`, { status }).then(r => r.data)
 

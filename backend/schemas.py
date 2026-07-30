@@ -13,6 +13,14 @@ class ClientOut(BaseModel):
 class ClientCreate(BaseModel):
     name: str
 
+class TextRecordingCreate(BaseModel):
+    text: str
+    type: str
+    client_id: Optional[str] = None
+    client_name: Optional[str] = None
+    user_email: Optional[str] = None
+    lodge_id: Optional[str] = None
+
 class RecordingOut(BaseModel):
     id: uuid.UUID
     created_at: datetime

@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css'
 import { 
   getByDate, updateStatus, updateDate, deleteRecording, Recording,
   getCalendarMonthSummary, getReservationsByDate, getShoppingHistory, getActiveShopping,
-  getPostponedMemos
+  getPostponedMemos, submitTextRecording
 } from '../api/client'
 
 export default function Dashboard() {
@@ -25,6 +25,26 @@ export default function Dashboard() {
   const [historyShopping, setHistoryShopping] = useState<Recording[]>([])
   const [showPostponedModal, setShowPostponedModal] = useState(false)
   const [postponedMemos, setPostponedMemos] = useState<Recording[]>([])
+
+  const [textInput, setTextInput] = useState('')
+  const [isSubmittingText, setIsSubmittingText] = useState(false)
+
+  const handleTextSubmit = async () => {
+    if (!textInput.trim()) return
+    setIsSubmittingText(true)
+    try {
+      const type = activeTab === 'shopping' ? 'shopping' : 'memo'
+      await submitTextRecording(textInput.trim(), type)
+      setTextInput('')
+      fetchTabData(selectedDate)
+      fetchMonthSummary(selectedDate)
+    } catch (err) {
+      console.error(err)
+      alert('Failed to submit text.')
+    } finally {
+      setIsSubmittingText(false)
+    }
+  }
 
   const fetchPostponedData = async () => {
     try {
@@ -314,6 +334,28 @@ export default function Dashboard() {
         </div>
 
         {/* Tab Content */}
+        {activeTab !== 'bookings' && (
+          <div style={{ padding: '16px 24px', background: '#F1F5F9', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 12 }}>
+            <input 
+              type="text" 
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder={`Type a new ${activeTab === 'shopping' ? 'shopping list item(s)' : 'memo'} here...`}
+              style={{ flexGrow: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 15 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleTextSubmit()
+              }}
+            />
+            <button 
+              onClick={handleTextSubmit}
+              disabled={isSubmittingText || !textInput.trim()}
+              style={{ padding: '0 20px', borderRadius: 8, border: 'none', background: '#1E3A8A', color: '#FFF', fontWeight: 'bold', cursor: isSubmittingText || !textInput.trim() ? 'not-allowed' : 'pointer', opacity: isSubmittingText || !textInput.trim() ? 0.7 : 1 }}
+            >
+              {isSubmittingText ? 'Saving...' : 'Add'}
+            </button>
+          </div>
+        )}
+
         <div style={{ padding: 24, overflowY: 'auto', flexGrow: 1 }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>Loading...</div>

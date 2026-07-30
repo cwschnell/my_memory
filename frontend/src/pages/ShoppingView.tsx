@@ -1,11 +1,28 @@
 import { useState, useEffect } from 'react'
-import { getActiveShopping, getShoppingHistory, deleteShoppingItem, ShoppingItem } from '../api/client'
+import { getActiveShopping, getShoppingHistory, deleteShoppingItem, submitTextRecording, ShoppingItem } from '../api/client'
 
 export default function ShoppingView() {
   const [activeItems, setActiveItems] = useState<ShoppingItem[]>([])
   const [historyItems, setHistoryItems] = useState<ShoppingItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [textInput, setTextInput] = useState('')
+  const [isSubmittingText, setIsSubmittingText] = useState(false)
+
+  const handleTextSubmit = async () => {
+    if (!textInput.trim()) return
+    setIsSubmittingText(true)
+    try {
+      await submitTextRecording(textInput.trim(), 'shopping')
+      setTextInput('')
+      fetchData()
+    } catch (err) {
+      console.error(err)
+      alert('Failed to submit text.')
+    } finally {
+      setIsSubmittingText(false)
+    }
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -83,6 +100,27 @@ export default function ShoppingView() {
           </button>
         </div>
       </header>
+
+      {/* Input Box */}
+      <div style={{ marginBottom: 24, padding: '16px', background: '#F1F5F9', borderRadius: 8, border: '1px solid #E2E8F0', display: 'flex', gap: 12 }}>
+        <input 
+          type="text" 
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+          placeholder="Type a new shopping list item(s) here..."
+          style={{ flexGrow: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 15 }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleTextSubmit()
+          }}
+        />
+        <button 
+          onClick={handleTextSubmit}
+          disabled={isSubmittingText || !textInput.trim()}
+          style={{ padding: '0 20px', borderRadius: 8, border: 'none', background: '#1E3A8A', color: '#FFF', fontWeight: 'bold', cursor: isSubmittingText || !textInput.trim() ? 'not-allowed' : 'pointer', opacity: isSubmittingText || !textInput.trim() ? 0.7 : 1 }}
+        >
+          {isSubmittingText ? 'Saving...' : 'Add'}
+        </button>
+      </div>
 
       {/* Printable Area Header */}
       <div className="print-only" style={{ display: 'none', marginBottom: 20 }}>
