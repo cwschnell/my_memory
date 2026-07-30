@@ -187,6 +187,14 @@ async def get_by_date(
 
 
 @router.get("/shopping/items", response_model=List[ShoppingItemOut])
+async def get_shopping_items(
+    user_email: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    lodge_id: Optional[uuid.UUID] = Depends(get_active_lodge_id)
+):
+    return await get_active_shopping_items(user_email, db, lodge_id)
+
+
 @router.get("/shopping/active", response_model=List[ShoppingItemOut])
 async def get_active_shopping_items(
     user_email: Optional[str] = None,
@@ -209,6 +217,13 @@ async def get_active_shopping_items(
 
 
 @router.delete("/shopping/items/{item_id}")
+async def delete_shopping_item_route(
+    item_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    return await delete_shopping_item(item_id, db)
+
+
 @router.patch("/shopping/items/{item_id}/status")
 async def delete_shopping_item(
     item_id: str,
