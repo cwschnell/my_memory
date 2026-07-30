@@ -69,7 +69,7 @@ class ApiService {
     String? clientId,
     String? clientName,
   }) async {
-    final uri = Uri.parse('$BASE_URL/recordings/text');
+    final uri = Uri.parse('$BASE_URL/recordings/text-direct');
     final headers = await _getHeaders(json: true);
     
     final payload = {

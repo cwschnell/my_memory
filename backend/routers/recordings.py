@@ -248,6 +248,106 @@ async def create_text_recording(
     )
     return res.scalar_one()
 
+
+@router.post("/text-direct", response_model=RecordingOut, status_code=201)
+async def create_text_recording_direct(
+    payload: TextRecordingCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Receive typed text from app, store directly without LLM."""
+    transcript = payload.text.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+    extracted_items = []
+    import re
+    if payload.type == "shopping":
+        extracted_items = [i.strip().title() for i in re.split(r'[,\n]', transcript) if i.strip()]
+        summary = ", ".join(extracted_items) if extracted_items else transcript[:50]
+    else:
+        words = re.findall(r'\b[A-Za-z0-9]+\b', transcript)
+        summary = " ".join(words[:3]).title() if words else "New Typed Memo"
+
+    target_client_id = None
+    if payload.client_id and payload.client_id.strip() and payload.client_id.strip().lower() not in ("null", "none"):
+        try:
+            target_client_id = uuid.UUID(payload.client_id.strip())
+        except ValueError:
+            target_client_id = None
+
+    if target_client_id is None and payload.client_name and payload.client_name.strip():
+        name_clean = payload.client_name.strip()
+        existing = await db.execute(select(Client).where(Client.name.ilike(name_clean)))
+        c_obj = existing.scalar_one_or_none()
+        if c_obj:
+            target_client_id = c_obj.id
+        else:
+            new_c = Client(name=name_clean)
+            db.add(new_c)
+            await db.commit()
+            await db.refresh(new_c)
+            target_client_id = new_c.id
+
+    rec_type = payload.type if payload.type in ("memo", "shopping") else "memo"
+    date_rec = date.today() if rec_type == "memo" else None
+
+    target_lodge_id = None
+    if payload.lodge_id and payload.lodge_id.strip() and payload.lodge_id.strip().lower() not in ("null", "none"):
+        try:
+            target_lodge_id = uuid.UUID(payload.lodge_id.strip())
+        except ValueError:
+            target_lodge_id = None
+
+    recording = Recording(
+        audio_path=None,
+        transcript=transcript,
+        summary=summary,
+        status="pending",
+        type=rec_type,
+        client_id=target_client_id,
+        date_recorded=date_rec,
+        user_email=payload.user_email,
+        lodge_id=target_lodge_id
+    )
+    db.add(recording)
+    await db.commit()
+    
+    if rec_type == "shopping" and extracted_items:
+        for item_str in extracted_items:
+            clean_item_name = item_str.strip().title()
+            if not clean_item_name:
+                continue
+            
+            conds = [func.lower(ShoppingItem.item_name) == clean_item_name.lower()]
+            if payload.user_email:
+                conds.append(ShoppingItem.user_email == payload.user_email)
+            if target_lodge_id:
+                conds.append(ShoppingItem.lodge_id == target_lodge_id)
+
+            stmt_item = select(ShoppingItem).where(and_(*conds))
+            ex_res = await db.execute(stmt_item)
+            existing_item = ex_res.scalars().first()
+            if existing_item:
+                existing_item.status = "active"
+                existing_item.item_name = clean_item_name
+                existing_item.recording_id = recording.id
+                existing_item.created_at = func.now()
+            else:
+                new_item = ShoppingItem(
+                    item_name=clean_item_name,
+                    status="active",
+                    recording_id=recording.id,
+                    user_email=payload.user_email,
+                    lodge_id=target_lodge_id
+                )
+                db.add(new_item)
+        await db.commit()
+
+    res = await db.execute(
+        select(Recording).options(selectinload(Recording.client)).where(Recording.id == recording.id)
+    )
+    return res.scalar_one()
+
 @router.get("/by-date/{date_str}", response_model=List[RecordingOut])
 async def get_by_date(
     date_str: str = Path(..., description="Date in YYYY-MM-DD format"),

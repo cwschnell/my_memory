@@ -29,6 +29,10 @@ api.interceptors.request.use((config) => {
       if (!config.data.has('user_email')) {
         config.data.append('user_email', email)
       }
+    } else if (config.method?.toLowerCase() === 'post' && config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+      if (!('user_email' in config.data)) {
+        config.data.user_email = email
+      }
     }
   }
 
@@ -38,6 +42,10 @@ api.interceptors.request.use((config) => {
     if (config.method?.toLowerCase() === 'post' && config.data instanceof FormData) {
       if (!config.data.has('lodge_id')) {
         config.data.append('lodge_id', activeLodgeId)
+      }
+    } else if (config.method?.toLowerCase() === 'post' && config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+      if (!('lodge_id' in config.data)) {
+        config.data.lodge_id = activeLodgeId
       }
     }
   }
@@ -78,7 +86,7 @@ export const getRecording = (id: string) =>
   api.get(`/recordings/${id}`).then(r => r.data)
 
 export const submitTextRecording = (text: string, type: string, client_id?: string, client_name?: string) =>
-  api.post(`/recordings/text`, { text, type, client_id, client_name }).then(r => r.data)
+  api.post(`/recordings/text-direct`, { text, type, client_id, client_name }).then(r => r.data)
 
 export const updateStatus = (id: string, status: string) =>
   api.patch(`/recordings/${id}/status`, { status }).then(r => r.data)
