@@ -147,16 +147,38 @@ async def upload_recording(
     return res.scalar_one()
 
 @router.post("/text", response_model=RecordingOut, status_code=201)
-@router.post("/text-direct", response_model=RecordingOut, status_code=201)
 async def create_text_recording(
     payload: TextRecordingCreate,
     x_lodge_id: Optional[str] = Header(None, alias="X-Lodge-Id"),
     db: AsyncSession = Depends(get_db)
 ):
     """Receive typed text from app, analyze with LLM, assign a proper name/summary, and store in DB."""
-    transcript = payload.text.strip()
-    if not transcript:
+    return await _process_text_recording_pipeline(payload, x_lodge_id, db)
+
+@router.post("/text-direct", response_model=RecordingOut, status_code=201)
+async def create_text_recording_direct(
+    payload: TextRecordingCreate,
+    x_lodge_id: Optional[str] = Header(None, alias="X-Lodge-Id"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Direct text recording endpoint handler (for backwards compatibility)."""
+    return await _process_text_recording_pipeline(payload, x_lodge_id, db)
+
+async def _process_text_recording_pipeline(
+    payload: TextRecordingCreate,
+    x_lodge_id: Optional[str],
+    db: AsyncSession
+) -> Recording:
+    raw_text = payload.text.strip()
+    if not raw_text:
         raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+    # Step 1: Clean/Fix transcript using NVIDIA LLM (grammar, spelling, gibberish)
+    try:
+        transcript = await clean_transcript(raw_text)
+    except Exception as e:
+        print(f"Error cleaning transcript: {e}")
+        transcript = raw_text
 
     extracted_items = []
     if payload.type == "shopping":
