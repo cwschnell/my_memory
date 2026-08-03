@@ -11,7 +11,10 @@ _client = None
 def get_openai_client():
     global _client
     if _client is None:
-        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        key = os.getenv("OPENAI_API_KEY")
+        if not key:
+            raise ValueError("OPENAI_API_KEY is not set in the .env file. Please add your API key to use voice features.")
+        _client = AsyncOpenAI(api_key=key)
     return _client
 
 async def transcribe_audio(audio_path: str) -> str:
