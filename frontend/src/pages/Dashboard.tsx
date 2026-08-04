@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css'
 import { 
   getByDate, updateStatus, updateDate, deleteRecording, Recording,
   getCalendarMonthSummary, getReservationsByDate, getShoppingHistory, getActiveShopping,
-  getPostponedMemos, submitTextRecording
+  getPostponedMemos, submitTextRecording, API_BASE_URL
 } from '../api/client'
 
 export default function Dashboard() {
@@ -28,6 +28,10 @@ export default function Dashboard() {
 
   const [textInput, setTextInput] = useState('')
   const [isSubmittingText, setIsSubmittingText] = useState(false)
+
+  const handlePlayAudio = (id: string) => {
+    new Audio(`${API_BASE_URL}/recordings/${id}/speak`).play();
+  }
 
   const handleTextSubmit = async () => {
     if (!textInput.trim()) return
@@ -369,7 +373,7 @@ export default function Dashboard() {
                   <th style={{ padding: '12px 16px', textAlign: 'center', width: 70 }}>Urgent</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', width: 70 }}>Done</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', width: 80 }}>Postpone</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', width: 70 }}>Action</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', width: 120 }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -424,12 +428,21 @@ export default function Dashboard() {
                       />
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        style={{ background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                      >
-                        Delete
-                      </button>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button
+                          onClick={() => handlePlayAudio(r.id)}
+                          title="Read Out Loud"
+                          style={{ background: '#E2E8F0', color: '#1E293B', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >
+                          🔊
+                        </button>
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          style={{ background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

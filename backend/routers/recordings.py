@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Path, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, case
 from sqlalchemy.orm import selectinload
@@ -12,6 +12,7 @@ from models import Recording, Client, ShoppingItem
 from schemas import RecordingOut, StatusUpdate, DateUpdate, ClientUpdate, TextUpdate, TranscriptPayload, ShoppingItemOut, ShoppingItemUpdate, TextRecordingCreate
 from services.transcription import transcribe_audio
 from services.summariser import summarise_to_three_words, categorize_shopping_item, extract_shopping_items, clean_transcript
+from services.transcription import get_openai_client
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
 UPLOAD_DIR = "/app/uploads"
@@ -763,3 +764,71 @@ async def delete_recording(recording_id: str, db: AsyncSession = Depends(get_db)
     await db.delete(rec)
     await db.commit()
     return None
+
+@router.get("/{recording_id}/speak")
+async def speak_recording(recording_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate and stream Text-to-Speech audio for a recording."""
+    try:
+        rec_uuid = uuid.UUID(recording_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    result = await db.execute(select(Recording).where(Recording.id == rec_uuid))
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    text_to_speak = rec.transcript or rec.summary or "No text available."
+    
+    # Optional: clean up transcript formatting if needed for TTS, but usually it's fine.
+    text_to_speak = text_to_speak.strip()
+    if not text_to_speak:
+        raise HTTPException(status_code=400, detail="No text to speak.")
+
+    client = get_openai_client()
+    try:
+        response = await client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=text_to_speak
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS request failed: {e}")
+
+    return StreamingResponse(
+        response.iter_bytes(),
+        media_type="audio/mpeg"
+    )
+
+@router.get("/shopping/{item_id}/speak")
+async def speak_shopping_item(item_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate and stream Text-to-Speech audio for a single shopping item."""
+    try:
+        item_uuid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    result = await db.execute(select(ShoppingItem).where(ShoppingItem.id == item_uuid))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+
+    text_to_speak = item.item_name
+    if not text_to_speak:
+        raise HTTPException(status_code=400, detail="No text to speak.")
+
+    client = get_openai_client()
+    try:
+        response = await client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=text_to_speak
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS request failed: {e}")
+
+    return StreamingResponse(
+        response.iter_bytes(),
+        media_type="audio/mpeg"
+    )
+

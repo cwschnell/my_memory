@@ -10,8 +10,10 @@ const getBaseURL = () => {
   return 'https://mymemos-production-d0e1.up.railway.app'
 }
 
+export const API_BASE_URL = getBaseURL()
+
 export const api = axios.create({ 
-  baseURL: getBaseURL()
+  baseURL: API_BASE_URL
 })
 
 api.interceptors.request.use((config) => {

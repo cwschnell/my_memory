@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../models/shopping_item.dart';
 import '../services/api_service.dart';
+import '../config.dart';
 
 class ShoppingScreen extends StatefulWidget {
   const ShoppingScreen({super.key});
@@ -12,6 +14,13 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   List<ShoppingItemModel> _items = [];
   bool _loading = false;
   String _authEmail = '';
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -196,9 +205,21 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                                   displayName,
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                  onPressed: () => _deleteItem(item.id),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.volume_up, color: Colors.blueGrey),
+                                      onPressed: () async {
+                                        final url = '$BASE_URL/recordings/shopping/${item.id}/speak';
+                                        await _audioPlayer.play(UrlSource(url));
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                      onPressed: () => _deleteItem(item.id),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),

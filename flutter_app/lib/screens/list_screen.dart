@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../models/recording.dart';
@@ -16,6 +17,13 @@ class _ListScreenState extends State<ListScreen> {
   List<Recording> _recordings = [];
   bool _loading = false;
   String _authEmail = '';
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -518,6 +526,15 @@ class _ListScreenState extends State<ListScreen> {
                                                   fontSize: 15,
                                                 ),
                                               ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.volume_up, size: 20, color: Colors.blueGrey),
+                                              padding: const EdgeInsets.only(left: 4, right: 8),
+                                              constraints: const BoxConstraints(),
+                                              onPressed: () async {
+                                                final url = '$BASE_URL/recordings/${rec.id}/speak';
+                                                await _audioPlayer.play(UrlSource(url));
+                                              },
                                             ),
                                           ],
                                         ),

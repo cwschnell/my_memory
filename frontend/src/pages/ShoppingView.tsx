@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getActiveShopping, getShoppingHistory, deleteShoppingItem, submitTextRecording, ShoppingItem } from '../api/client'
+import { getActiveShopping, getShoppingHistory, deleteShoppingItem, submitTextRecording, ShoppingItem, API_BASE_URL } from '../api/client'
 
 export default function ShoppingView() {
   const [activeItems, setActiveItems] = useState<ShoppingItem[]>([])
@@ -8,6 +8,10 @@ export default function ShoppingView() {
   const [loading, setLoading] = useState(false)
   const [textInput, setTextInput] = useState('')
   const [isSubmittingText, setIsSubmittingText] = useState(false)
+
+  const handlePlayAudio = (id: string) => {
+    new Audio(`${API_BASE_URL}/recordings/shopping/${id}/speak`).play();
+  }
 
   const handleTextSubmit = async () => {
     if (!textInput.trim()) return
@@ -153,22 +157,40 @@ export default function ShoppingView() {
                   <span style={{ fontSize: 16, fontWeight: 600, color: '#1E293B' }}>
                     {item.item_name}
                   </span>
-                  <button
-                    className="no-print"
-                    onClick={() => handleDelete(item.id)}
-                    style={{
-                      background: '#EF4444',
-                      color: '#FFF',
-                      border: 'none',
-                      borderRadius: 6,
-                      padding: '6px 14px',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 13
-                    }}
-                  >
-                    Delete
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="no-print"
+                      onClick={() => handlePlayAudio(item.id)}
+                      style={{
+                        background: '#E2E8F0',
+                        color: '#1E293B',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '6px 10px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: 13
+                      }}
+                    >
+                      🔊
+                    </button>
+                    <button
+                      className="no-print"
+                      onClick={() => handleDelete(item.id)}
+                      style={{
+                        background: '#EF4444',
+                        color: '#FFF',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '6px 14px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: 13
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
