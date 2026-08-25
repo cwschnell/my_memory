@@ -125,7 +125,8 @@ async def scan_passport(file: UploadFile = File(...)):
             resp = await client.post(NVIDIA_URL, json=payload, headers=headers)
             if resp.status_code != 200:
                 logger.error(f"NVIDIA API responded with status {resp.status_code}: {resp.text}")
-                raise HTTPException(status_code=502, detail=f"NVIDIA API responded with status {resp.status_code}")
+                # Include the response text so the Flutter app sees exactly why it failed (e.g. image too large)
+                raise HTTPException(status_code=502, detail=f"NVIDIA API Error {resp.status_code}: {resp.text}")
             
             res_json = resp.json()
             raw_text = res_json["choices"][0]["message"]["content"].strip()

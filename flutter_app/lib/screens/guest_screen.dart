@@ -297,7 +297,9 @@ class _GuestScreenState extends State<GuestScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 90,
+      imageQuality: 70,
+      maxWidth: 1600,
+      maxHeight: 1600,
       preferredCameraDevice: CameraDevice.rear,
     );
     if (picked == null) return;
