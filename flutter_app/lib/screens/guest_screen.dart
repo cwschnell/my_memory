@@ -145,8 +145,8 @@ class _GuestScreenState extends State<GuestScreen> {
     _loadGuests();
   }
 
-  void _openNewGuestForm({GuestModel? prefilled, File? passportImage}) {
-    showModalBottomSheet(
+  Future<void> _openNewGuestForm({GuestModel? prefilled, File? passportImage}) async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1E293B),
@@ -154,6 +154,7 @@ class _GuestScreenState extends State<GuestScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => GuestFormSheet(
+        key: UniqueKey(),
         token: _token,
         prefilled: prefilled,
         passportImageFile: passportImage,
@@ -340,7 +341,7 @@ class _GuestScreenState extends State<GuestScreen> {
         placeOfBirth:     result.placeOfBirth,
       );
 
-      _openNewGuestForm(prefilled: prefilled, passportImage: file);
+      await _openNewGuestForm(prefilled: prefilled, passportImage: file);
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
